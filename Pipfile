@@ -1,0 +1,17 @@
+[[source]]
+url = "https://mirrors.ustc.edu.cn/pypi/web/simple"
+verify_ssl = true
+name = "pip_conf_index_global"
+
+[packages]
+# data processing and visualisation
+pandas = "*"
+openpyxl = "*"
+matplotlib = "*"
+
+#
+
+[dev-packages]
+
+[requires]
+python_version = "3.9"
