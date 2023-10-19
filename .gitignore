@@ -1,6 +1,7 @@
 # project based directories or files
 refs/
 .idea/
+~*.*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
