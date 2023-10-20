@@ -41,6 +41,15 @@ def merging(org: pd.DataFrame, tar: pd.DataFrame) -> pd.DataFrame:
     org.columns = names
     # report the diff
     diff = set(var['id']).difference(set(org['id']))  # find the diff household IDs
+    org.id = org['id']
+    org = org.drop(columns=['id'])
+    org = org.dropna(how='all')  # drop NAs (incl. residents without energy data)
+    # rename by the mapping
+    names = [MERGE_MAPPING[c] for c in org.columns]
+    org = org.reset_index()
+    org.columns = ['id'] + names
+    # report the diff
+    diff = set(var['id']).difference(set(org.index))  # find the diff household IDs
     print(f'Difference: {len(var) - len(org)} in [{diff}]')
     # merging
     return tar.merge(org, on='id', how='left')
@@ -61,3 +70,10 @@ if __name__ == '__main__':
     var = var.drop(columns=drops)
 
     merged = merging(calculate, var)
+
+    # load the latest variable data
+    var_datafile = Path('data') / 'vardata-0207.xlsx'
+    var = pd.read_excel(var_datafile, engine='openpyxl')
+    # remove all the emission columns
+    drops = [it for it in var.columns if 'emi' in it]
+    var = var.drop(columns=drops)
