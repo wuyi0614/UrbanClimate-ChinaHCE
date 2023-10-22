@@ -20,6 +20,96 @@
       "coal_base_unit": "kgce/m3",
       "use_perhour": 0.4,
       "use_unit": "m3"
+    },
+    "煤气灶(管道煤气)": {
+      "power": 4,
+      "power_unit": "kw",
+      "heat_load": 860,
+      "kcal": 2500,
+      "coal_base": 0.357,
+      "coal_base_unit": "kgce/m3",
+      "use_perhour": 0.4,
+      "use_unit": "m3"
+    },
+    "柴火灶/土灶（薪柴）": {
+      "power": 4,
+      "power_unit": "kw",
+      "heat_load": 1720,
+      "kcal": 4000,
+      "coal_base": 0.571,
+      "coal_base_unit": "kgce/kg",
+      "use_perhour": 0.430,
+      "use_unit": "m3"
+    },
+    "柴火灶/土灶（秸秆）": {
+      "power": 4,
+      "power_unit": "kw",
+      "heat_load": 1720,
+      "kcal": 3500,
+      "coal_base": 0.500,
+      "coal_base_unit": "kgce/kg",
+      "use_perhour": 0.491,
+      "use_unit": "kg"
+    },
+    "电饭煲": {
+      "power": "",
+      "power_unit": "kw",
+      "heat_load": "",
+      "kcal": "",
+      "coal_base": 0.1229,
+      "coal_base_unit": "kgce/kwh",
+      "use_perhour": "",
+      "use_unit": "kwh"
+    },
+    "电磁炉": {
+      "power": "",
+      "power_unit": "kw",
+      "heat_load": "",
+      "kcal": "",
+      "coal_base": 0.1229,
+      "coal_base_unit": "kgce/kwh",
+      "use_perhour": "",
+      "use_unit": "kwh"
+    },
+    "电水壶": {
+      "power": "",
+      "power_unit": "kw",
+      "heat_load": "",
+      "kcal": "",
+      "coal_base": 0.1229,
+      "coal_base_unit": "kgce/kwh",
+      "use_perhour": "",
+      "use_unit": "kwh"
+    },
+    "高压锅": {
+      "power": "",
+      "power_unit": "kw",
+      "heat_load": "",
+      "kcal": "",
+      "coal_base": 0.1229,
+      "coal_base_unit": "kgce/kwh",
+      "use_perhour": "",
+      "use_unit": "kwh"
+    },
+    "烤箱": {
+      "power": "",
+      "power_unit": "kw",
+      "heat_load": "",
+      "kcal": "",
+      "coal_base": 0.1229,
+      "coal_base_unit": "kgce/kwh",
+      "use_perhour": "",
+      "use_unit": "kwh"
+    },
+    "其他": {
+      "power": "",
+      "power_unit": "kw",
+      "heat_load": "",
+      "kcal": "",
+      "coal_base": 0.1229,
+      "coal_base_unit": "kgce/kwh",
+      "use_perhour": "",
+      "use_unit": "kwh"
     }
   },
   "freq": {

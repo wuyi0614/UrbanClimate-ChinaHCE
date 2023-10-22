@@ -18,19 +18,52 @@ CONFIG = json.loads(CONFIGFILE.read_text('utf8'))
 def cooking(row: dict) -> dict:
     """
     Household cooking energy consumption conversion.
+    Mapping (e13x-e16x):
+        - e13a, name
+        - e13c, power
+        - e13d, freq
+        - e13e, time
 
     :param row: a dict(row-like) data from dataframe
     :return: an updated dict
     """
+    result = defaultdict(list)
+    conf = CONFIG['cooking']
+    for i, idx in enumerate(range(13, 17)):
+        # use name of appliance for verification
+        n = str(row[f'e{idx}a']).strip()
+        if n == 'nan':
+            print('No appliance specified')
+            continue
 
-    n = row['e13a']
+        assert n in conf, f'Invalid cooking appliance: {n}'
+        c = conf[n]
+        # NB. equation:
+        # months * month-based freq * minute/hour * use_perhour * kgce
+        freq, time, power = CONFIG['freq'], CONFIG['time'], CONFIG['power']
 
-    assert n in CONFIG['cooking'], f'Invalid cooking aspect: {n}'
-    conf = CONFIG[n]
-    # NB. equation: month-based freq * minute/hour * use_perhour * days-base * kgce
+        # extract the parameters
+        p = str(row[f'e{idx}c']).strip()  # watts
+        f = str(row[f'e{idx}d']).strip()  # days
+        t = str(row[f'e{idx}e']).strip()  # minutes
 
-    # 1 * 52.5 / 60 * 0.31 * 3 * 30 * 12 * 1.4129
+        # calculate
+        if n.startswith('煤气灶'):
+            r = 12 * freq.get(f, 0) * time.get(t, 0)/60 * c['use_perhour'] * c['coal_base']
+        else:
+            use_perhour = p/1000
+            r = 12 * freq.get(f, 0) * time.get(t, 0)/60 * use_perhour * c['coal_base']
 
+        # save results
+        result['id'] += [row['id']]
+        result['type'] += ['cooking']
+        result['appliance'] += [n]
+        result['power'] += [p]
+        result['frequency'] += [f]
+        result['time'] += [t]
+        result['use'] += [r]
+
+    return result
 
 
 def checker(proc: pd.DataFrame, raw: pd.DataFrame):
@@ -63,7 +96,7 @@ def checker(proc: pd.DataFrame, raw: pd.DataFrame):
 
         # second: check the missing
 
-    return
+    return pd.DataFrame(rows)
 
 
 if __name__ == '__main__':
@@ -82,3 +115,7 @@ if __name__ == '__main__':
 
     missings = pd.DataFrame(missings)  # raise error if they're in different lengths
     del missings
+
+    # check missing data
+    missing = checker(proc, raw)
+
