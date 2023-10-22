@@ -112,6 +112,94 @@
       "use_unit": "kwh"
     }
   },
+  "freezing": {
+    "大型[150-250L）": {
+      "mean_size": 200,
+      "mean_power": 0.14,
+      "power_unit": "kw",
+      "coal_base": 0.1229,
+      "coal_base_unit": "kgce/kwh"
+    },
+    "中型[75-150L)": {
+      "mean_size": 112.5,
+      "mean_power": 0.11,
+      "power_unit": "kw",
+      "coal_base": 0.1229,
+      "coal_base_unit": "kgce/kwh"
+    },
+    "超大型>=250L": {
+      "mean_size": 250,
+      "mean_power": 0.20,
+      "power_unit": "kw"
+    },
+    "小型<75L": {
+      "mean_size": 75,
+      "mean_power": 0.08,
+      "power_unit": "kw"
+    },
+    "无法回答": {
+      "mean_size": 0,
+      "mean_power": 0,
+      "power_unit": "kw"
+    }
+  },
+  "laundry": {
+    ">=7公斤": {
+      "mean_size": 7,
+      "mean_cycle": 1
+    },
+    "[3-5)公斤": {
+      "mean_size": 4,
+      "mean_cycle": 1
+    },
+    "[5-7)公斤": {
+      "mean_size": 6,
+      "mean_cycle": 1
+    },
+    "<3公斤": {
+      "mean_size": 3,
+      "mean_cycle": 1
+    },
+    "无法回答": {
+      "mean_size": 0,
+      "mean_cycle": 0
+    }
+  },
+  "computer": {
+    "台式机": {
+      "mean_power": 0
+    },
+    "笔记本": {
+      "mean_power": 0
+    },
+    "平板": {
+      "mean_power": 0
+    }
+  },
+  "ee": {
+    "freezing": {
+      "二级能效": 0.45,
+      "无法回答": 0,
+      "没有标识": 1,
+      "一级能效": 0.4,
+      "三级能效": 0.55,
+      "四级能效": 0.65,
+      "五级能效": 0.75,
+      "unit": "%"
+    },
+    "laundry": {
+      "二级能效": 0.130,
+      "无法回答": 0,
+      "没有标识": 1,
+      "一级能效": 0.110,
+      "三级能效": 0.150,
+      "四级能效": 0.170,
+      "五级能效": 0.190,
+      "unit": "kWh/cycle/kg"
+    },
+    "ac": {
+    }
+  },
   "freq": {
     "每天≥3次": 90,
     "每天2次": 60,
@@ -122,6 +210,14 @@
     "每月2-3次": 2.5,
     "从来不用": 0,
     "无法回答": 0
+  },
+  "runtime": {
+    "[10,12]个月": 11,
+    "无法回答": 0,
+    "[1,4)个月": 2.5,
+    "从来不用": 0,
+    "[7,10)个月": 8.5,
+    "[4,7)个月": 5.5
   },
   "power": {
     ">=1500W": 1500,
