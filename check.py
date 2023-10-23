@@ -14,6 +14,41 @@ CONFIGFILE = Path('data') / 'config.json'
 CONFIG = json.loads(CONFIGFILE.read_text('utf8'))
 
 
+# redo the data merging
+def checker(proc: pd.DataFrame, raw: pd.DataFrame, mode='find'):
+    """
+
+    :param proc: calculated but not verified data
+    :param raw: as defined, the unprocessed raw data
+    :param mode: find=missing ids only, all=all ids
+    :return: a new dataframe
+    """
+    sub = proc[proc['id'].isin(raw['id'].values)]  # matched by id
+    # missing entries
+    intersect = set(raw['id']).intersection(set(raw['id']))
+    missing = set(raw['id']).difference(set(raw['id']).intersection(set(proc['id'])))
+    print(f'Missing {len(missing)} IDs: {missing}')
+
+    # intersection columns
+    overlap = set(sub.columns).intersection(set(raw.columns))
+    overlap.remove('id')
+
+    # depend on the mode: find / all
+    ids = missing if mode == 'find' else raw['id'].unique()
+    rows = defaultdict(list)
+    for i in ids:
+        rows['id'] += [i]
+        for c in overlap:
+            # first: check the intersection
+            v = raw.loc[raw['id'] == i, c]
+            if not v.empty and v[v.isna()].empty:
+                rows[c] += [v.values[0]]
+            else:
+                rows[c] += ['']
+
+    return pd.DataFrame(rows)
+
+
 # aspect-specific calculation
 def cooking(row: dict) -> dict:
     """
@@ -46,12 +81,17 @@ def cooking(row: dict) -> dict:
         f = str(row[f'e{idx}d']).strip()  # days
         t = str(row[f'e{idx}e']).strip()  # minutes
 
-        # calculate
-        if n.startswith('煤气灶'):
-            r = 12 * freq.get(f, 0) * time.get(t, 0) / 60 * c['use_perhour'] * c['coal_base']
+        # calculate, and the conversion equation between stove heat load and kgce
+        # assume heat load=2kw （~7.2MJ/h eq), then use_perhour = heat load / fuel's heat (MJ)
+        # e.g. civil briquette's heat is 23MJ, then its perhour use is 7.2MJ/h / 23MJ/kg = 0.313 kg/h
+        ff = freq.get(f, 0) * 12
+        tt = time.get(t, 0) / 60
+
+        if '灶' in n or '蜂窝' in n:
+            r = 12 * ff * tt * c['use_perhour'] * c['coal_base']
         else:
             use_perhour = power.get(p, 0) / 1000
-            r = 12 * freq.get(f, 0) * time.get(t, 0) / 60 * use_perhour * c['coal_base']
+            r = ff * tt * use_perhour * c['coal_base']
 
         # save results
         result['id'] += [row['id']]
@@ -59,8 +99,8 @@ def cooking(row: dict) -> dict:
         result['appliance'] += [n]
         result['power'] += [p]
         result['efficiency'] += ['']
-        result['frequency'] += [f]
-        result['time'] += [t]
+        result['frequency'] += [ff]
+        result['time'] += [tt]
         result['use'] += [r]
 
     return result
@@ -159,10 +199,10 @@ def laundry(row: dict) -> dict:
         mean_power = s * c['mean_cycle'] * ee  # mean power kwh
         pp = power[p] if power[p] > 0 else mean_power
         # get time and freq
-        tt = time.get(t, 0)
-        ff = freq.get(f, 0)
+        tt = time.get(t, 0) / 60
+        ff = freq.get(f, 0) * 12
         # power/hour * hour * times/month * months * coal_base
-        r = pp * tt / 60 * ff * 12 * coal_base
+        r = pp * tt * ff * coal_base
 
         # save results
         result['id'] += [row['id']]
@@ -204,9 +244,9 @@ def television(row: dict) -> dict:
 
         # calculate
         coal_base = 0.1229  # fixed rate
-        tt = time.get(t, 0)
+        tt = time.get(t, 0) / 60
         # power/hour * use hour * runtime * days * coal_base
-        r = pp * tt/60 * 30 * 12 * coal_base
+        r = pp * tt * 30 * 12 * coal_base
 
         # save results
         result['id'] += [row['id']]
@@ -223,43 +263,50 @@ def television(row: dict) -> dict:
 
 def computer(row: dict) -> dict:
     """
-    Household television energy consumption conversion.
-    Mapping (e31x-e36x):
+    Household computer energy consumption conversion.
+    Mapping (e31x-e5x):
         - e31a, type
         - e31e, monitor efficiency, 1-no, 2-1st EE, 6-5th EE.
+        - e31b, monitor size
         - e31f, time
 
     :param row: a dict(row-like) data from dataframe
     :return: an updated dict
     """
     result = defaultdict(list)
-    for i, idx in enumerate(range(26, 29)):
+    conf = CONFIG['computer']
+    for i, idx in enumerate(range(31, 36)):
         n = str(row[f'e{idx}a']).strip()
-        if n == 'nan':
+        if n == 'nan' or n == '':
             continue
 
         # load config
-        time, power = CONFIG['time'], CONFIG['power']
+        time = CONFIG['time']
 
         # extract the parameters
-        p = str(row[f'e{idx}e']).strip()  # power
-        e = str(row[f'e{idx}f']).strip()  # efficiency
-        t = str(row[f'e{idx}g']).strip()  # time
+        e = str(row[f'e{idx}e']).strip()  # efficiency
+        s = str(row[f'e{idx}b']).strip()  # monitor size
+        t = str(row[f'e{idx}f']).strip()  # time
+
         # check the answer
-        pp = power.get(p, 0)
-        if pp == 0:
-            continue
+        c = conf.get(n, {})
+        m = conf.get(s, {})
+        p = c.get('mean_power', 0)  # power
+        pm = m.get('mean_power', 0)  # monitor's power
+        pp = p + pm if n == '台式机' else p
+        ss = m.get('mean_size', 0)  # monitor's size
 
         # calculate
         coal_base = 0.1229  # fixed rate
-        tt = time.get(t, 0)
+        tt = time.get(t, 0) / 60
+        pp = pp / 1000
         # power/hour * use hour * runtime * days * coal_base
-        r = pp * tt/60 * 30 * 12 * coal_base
+        r = pp * tt * 30 * 12 * coal_base
 
         # save results
         result['id'] += [row['id']]
-        result['type'] += ['television']
-        result['appliance'] += ['']
+        result['type'] += ['computer']
+        result['appliance'] += [f'{n}[{ss}-inch]']
         result['power'] += [pp]
         result['efficiency'] += [e]
         result['frequency'] += ['everyday']
@@ -271,11 +318,57 @@ def computer(row: dict) -> dict:
 
 def lighting(row: dict) -> dict:
     """
-    Household television energy consumption conversion.
-    Mapping (e26x-e28x):
-        - e26e, power
-        - e26f, efficiency, 1-no, 2-1st EE, 6-5th EE.
-        - e26g, time
+    Household lighting energy consumption conversion.
+    Mapping (e36x-e38x):
+        - e36a, number of bulbs
+        - e36b, use time
+
+    :param row: a dict(row-like) data from dataframe
+    :return: an updated dict
+    """
+    result = defaultdict(list)
+    conf = CONFIG['lighting']
+    for i, idx in enumerate(range(36, 39)):
+        # NB. equation:
+        time, number = CONFIG['time'], CONFIG['number']
+        # extract the parameters
+        n = str(row[f'e{idx}a']).strip()  # number
+        t = str(row[f'e{idx}b']).strip()  # time
+        # check the answer
+        if n == 'nan' or n == '':
+            continue
+
+        pp = list(conf.values())[i]
+        # calculate
+        coal_base = 0.1229  # fixed rate
+        tt = time.get(t, 0) / 60
+        nn = number.get(n, 1)
+
+        # power/hour * use hour * number * runtime * days * coal_base
+        r = pp/1000 * nn * tt * 30 * 12 * coal_base
+
+        # save results
+        result['id'] += [row['id']]
+        result['type'] += ['lighting']
+        result['appliance'] += [list(conf.keys())[i]+f'[{nn}bulbs]']
+        result['power'] += [pp]
+        result['efficiency'] += ['']
+        result['frequency'] += ['everyday']
+        result['time'] += [tt]
+        result['use'] += [r]
+
+    return result
+
+
+def heating(row: dict) -> dict:
+    """
+    Household heating energy consumption conversion.
+    Mapping (e52x-e55x):
+        - e52a, name
+        - e52b, fuel type
+        - e52c, time
+        - e52d, freq
+        - e52f, area, m2
 
     :param row: a dict(row-like) data from dataframe
     :return: an updated dict
@@ -296,9 +389,9 @@ def lighting(row: dict) -> dict:
 
         # calculate
         coal_base = 0.1229  # fixed rate
-        tt = time.get(t, 0)
+        tt = time.get(t, 0) / 60
         # power/hour * use hour * runtime * days * coal_base
-        r = pp * tt/60 * 30 * 12 * coal_base
+        r = pp * tt * 30 * 12 * coal_base
 
         # save results
         result['id'] += [row['id']]
@@ -313,13 +406,15 @@ def lighting(row: dict) -> dict:
     return result
 
 
-def heater(row: dict) -> dict:
+def add_heating(row: dict) -> dict:
     """
     Household television energy consumption conversion.
-    Mapping (e26x-e28x):
-        - e26e, power
-        - e26f, efficiency, 1-no, 2-1st EE, 6-5th EE.
-        - e26g, time
+    Mapping:
+        - e39, heating source, 1-centric, 2-individual, 3-mixed, 4-no
+        - e41, heating mode, 1-steam, 2-hot water, 3-hot wind
+        - e42, run time, months
+        - e44, heating area
+        - e46, temperature
 
     :param row: a dict(row-like) data from dataframe
     :return: an updated dict
@@ -340,9 +435,9 @@ def heater(row: dict) -> dict:
 
         # calculate
         coal_base = 0.1229  # fixed rate
-        tt = time.get(t, 0)
+        tt = time.get(t, 0) / 60
         # power/hour * use hour * runtime * days * coal_base
-        r = pp * tt/60 * 30 * 12 * coal_base
+        r = pp * tt * 30 * 12 * coal_base
 
         # save results
         result['id'] += [row['id']]
@@ -351,6 +446,56 @@ def heater(row: dict) -> dict:
         result['power'] += [pp]
         result['efficiency'] += [e]
         result['frequency'] += ['everyday']
+        result['time'] += [tt]
+        result['use'] += [r]
+
+    return result
+
+
+def waterheating(row: dict) -> dict:
+    """
+    Household water heating energy consumption conversion.
+    Mapping (e57x-e58x):
+        - e57a, name/type
+        - e57b, fuel type
+        - e57e, frequency
+        - e57f, time
+        - e57g, efficiency
+
+    :param row: a dict(row-like) data from dataframe
+    :return: an updated dict
+    """
+    result = defaultdict(list)
+    conf = CONFIG['waterheating']
+    for i, idx in enumerate(range(57, 59)):
+        time, power, fuel, freq = CONFIG['time'], CONFIG['power'], CONFIG['fuel'], CONFIG['freq']
+
+        # extract the parameters
+        n = str(row[f'e{idx}a']).strip()  # name/type
+        y = str(row[f'e{idx}b']).strip()  # fuel
+        e = str(row[f'e{idx}f']).strip()  # efficiency
+        t = str(row[f'e{idx}f']).strip()  # time
+        f = str(row[f'e{idx}e']).strip()  # freq
+        if n == 'nan' or n == '':
+            continue
+
+        # check the answer
+        use_perhour = conf[n][y]
+        ff = freq.get(f, 0) / 30
+        tt = time.get(t, 0) / 60
+        coal_base = 0.1229 if y == '电力' else fuel.get(y, 0)
+        if n == '储水式':
+            r = use_perhour * tt * ff * 12 * coal_base + use_perhour * (2 + tt) * 12 * coal_base
+        else:
+            r = use_perhour * tt * ff * 12 * coal_base
+
+        # save results
+        result['id'] += [row['id']]
+        result['type'] += ['waterheating']
+        result['appliance'] += [f'{n}[{y}]']
+        result['power'] += [use_perhour]
+        result['efficiency'] += [e]
+        result['frequency'] += [ff]
         result['time'] += [tt]
         result['use'] += [r]
 
@@ -386,7 +531,7 @@ def ac(row: dict) -> dict:
         coal_base = 0.1229  # fixed rate
         tt = time.get(t, 0)
         # power/hour * use hour * runtime * days * coal_base
-        r = pp * tt/60 * 30 * 12 * coal_base
+        r = pp * tt / 60 * 30 * 12 * coal_base
 
         # save results
         result['id'] += [row['id']]
@@ -404,10 +549,57 @@ def ac(row: dict) -> dict:
 def vehicle(row: dict) -> dict:
     """
     Household television energy consumption conversion.
-    Mapping (e26x-e28x):
-        - e26e, power
-        - e26f, efficiency, 1-no, 2-1st EE, 6-5th EE.
-        - e26g, time
+    Mapping (e67, e70, e68, e72):
+        - e67, engine fuel use
+        - e68, driving distance
+        - e70, fuel type
+        - e72, actual fuel use
+
+    :param row: a dict(row-like) data from dataframe
+    :return: an updated dict
+    """
+    result = defaultdict(list)
+    time, power = CONFIG['time'], CONFIG['power']
+
+    # extract the parameters
+    p = str(row[f'e67']).strip()  # engine fuel use, ?L
+    e = str(row[f'e68']).strip()  # distance, 10,000km
+    t = str(row[f'e70']).strip()  # fuel type
+    t = str(row[f'e72']).strip()  # actual fuel use, ?L/100km
+
+    # check the answer
+    pp = power.get(p, 0)
+    if pp == 0:
+        continue
+
+    # calculate
+    coal_base = 0.1229  # fixed rate
+    tt = time.get(t, 0)
+    # power/hour * use hour * runtime * days * coal_base
+    r = pp * tt / 60 * 30 * 12 * coal_base
+
+    # save results
+    result['id'] += [row['id']]
+    result['type'] += ['television']
+    result['appliance'] += ['']
+    result['power'] += [pp]
+    result['efficiency'] += [e]
+    result['frequency'] += ['everyday']
+    result['time'] += [tt]
+    result['use'] += [r]
+
+    return result
+
+
+def add_vehicle(row: dict) -> dict:
+    """
+    Add vehicle-related variables to our dataset
+    Mapping:
+        - e39, heating source, 1-centric, 2-individual, 3-mixed, 4-no
+        - e41, heating mode, 1-steam, 2-hot water, 3-hot wind
+        - e42, run time, months
+        - e44, heating area
+        - e46, temperature
 
     :param row: a dict(row-like) data from dataframe
     :return: an updated dict
@@ -428,9 +620,9 @@ def vehicle(row: dict) -> dict:
 
         # calculate
         coal_base = 0.1229  # fixed rate
-        tt = time.get(t, 0)
+        tt = time.get(t, 0) / 60
         # power/hour * use hour * runtime * days * coal_base
-        r = pp * tt/60 * 30 * 12 * coal_base
+        r = pp * tt * 30 * 12 * coal_base
 
         # save results
         result['id'] += [row['id']]
@@ -443,40 +635,6 @@ def vehicle(row: dict) -> dict:
         result['use'] += [r]
 
     return result
-
-
-def checker(proc: pd.DataFrame, raw: pd.DataFrame, mode='find'):
-    """
-
-    :param proc: calculated but not verified data
-    :param raw: as defined, the unprocessed raw data
-    :param mode: find=missing ids only, all=all ids
-    :return: a new dataframe
-    """
-    sub = proc[proc['id'].isin(raw['id'].values)]  # matched by id
-    # missing entries
-    intersect = set(raw['id']).intersection(set(raw['id']))
-    missing = set(raw['id']).difference(set(raw['id']).intersection(set(proc['id'])))
-    print(f'Missing {len(missing)} IDs: {missing}')
-
-    # intersection columns
-    overlap = set(sub.columns).intersection(set(raw.columns))
-    overlap.remove('id')
-
-    # depend on the mode: find / all
-    ids = missing if mode == 'find' else raw['id'].unique()
-    rows = defaultdict(list)
-    for i in ids:
-        rows['id'] += [i]
-        for c in overlap:
-            # first: check the intersection
-            v = raw.loc[raw['id'] == i, c]
-            if not v.empty and v[v.isna()].empty:
-                rows[c] += [v.values[0]]
-            else:
-                rows[c] += ['']
-
-    return pd.DataFrame(rows)
 
 
 if __name__ == '__main__':
@@ -497,8 +655,8 @@ if __name__ == '__main__':
     del missings
 
     # check missing data
-    proc = pd.read_excel(cal_datafile, engine='openpyxl', sheet_name='电视')
-    missing = checker(proc, raw)
+    proc = pd.read_excel(cal_datafile, engine='openpyxl', sheet_name='照明')
+    missing = checker(proc, raw, mode='all')
 
     # calculate energy use
     row = proc.loc[2, :].to_dict()
