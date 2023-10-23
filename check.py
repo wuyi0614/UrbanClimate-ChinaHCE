@@ -467,27 +467,42 @@ def waterheating(row: dict) -> dict:
     """
     result = defaultdict(list)
     conf = CONFIG['waterheating']
+    time, freq, fuel = CONFIG['time'], CONFIG['freq'], CONFIG['fuel']
+    eff = CONFIG['ee']['waterheating']
     for i, idx in enumerate(range(57, 59)):
-        time, power, fuel, freq = CONFIG['time'], CONFIG['power'], CONFIG['fuel'], CONFIG['freq']
-
         # extract the parameters
         n = str(row[f'e{idx}a']).strip()  # name/type
         y = str(row[f'e{idx}b']).strip()  # fuel
-        e = str(row[f'e{idx}f']).strip()  # efficiency
+        e = str(row[f'e{idx}g']).strip()  # efficiency
         t = str(row[f'e{idx}f']).strip()  # time
         f = str(row[f'e{idx}e']).strip()  # freq
         if n == 'nan' or n == '':
             continue
 
         # check the answer
-        use_perhour = conf[n][y]
+        use_perhour = conf[n][y]['mean_power']  # which type with what fuel
         ff = freq.get(f, 0) / 30
         tt = time.get(t, 0) / 60
-        coal_base = 0.1229 if y == '电力' else fuel.get(y, 0)
+        ee = eff.get(e, 0)
+
+        # equation:
+        # 1. storage water heater
+        #    power(kW) * work hour(hour/times)[regular + use hours(0.5*times/th)] * eff * (days/year) * coal base
+        # 2. instant water heater
         if n == '储水式':
-            r = use_perhour * tt * ff * 12 * coal_base + use_perhour * (2 + tt) * 12 * coal_base
+            coal_base = 0.1229
+            work_hour_regular = 3  # 3 hours per day if it runs for 24h
+            threshold_work = 1.025  # actual freq = frequency / threshold_work (average use times per family)
+            actual_freq = ff / threshold_work
+            r = use_perhour * (work_hour_regular + actual_freq * 0.5) * ee * 365 * coal_base
         else:
-            r = use_perhour * tt * ff * 12 * coal_base
+            if y == '电力':
+                coal_base = 0.1229
+                r = use_perhour * tt * 365 * coal_base
+            elif '太阳能' in y:
+                r = use_perhour * 365
+            else:
+                r = use_perhour * tt * 365 * fuel[y]
 
         # save results
         result['id'] += [row['id']]
@@ -505,41 +520,50 @@ def waterheating(row: dict) -> dict:
 def ac(row: dict) -> dict:
     """
     Household television energy consumption conversion.
-    Mapping (e26x-e28x):
-        - e26e, power
-        - e26f, efficiency, 1-no, 2-1st EE, 6-5th EE.
-        - e26g, time
+    Mapping (e60x-e63x):
+        - e60d, name/type
+        - e60e, energy efficiency
+        - e60f, fixed/flexible
+        - e60g, frequency
+        - e60h, time
 
     :param row: a dict(row-like) data from dataframe
     :return: an updated dict
     """
+    time, power, runtime = CONFIG['time'], CONFIG['ac'], CONFIG['runtime']
+    eff = CONFIG['ee']['ac']
     result = defaultdict(list)
-    for i, idx in enumerate(range(26, 29)):
-        # NB. equation:
-        time, power = CONFIG['time'], CONFIG['power']
-
+    for i, idx in enumerate(range(60, 64)):
         # extract the parameters
-        p = str(row[f'e{idx}e']).strip()  # power
-        e = str(row[f'e{idx}f']).strip()  # efficiency
-        t = str(row[f'e{idx}g']).strip()  # time
+        p = str(row[f'e{idx}d']).strip()  # power
+        e = str(row[f'e{idx}e']).strip()  # efficiency
+        a = str(row[f'e{idx}f']).strip()  # fixed/flexible
+        f = str(row[f'e{idx}g']).strip()  # frequency
+        t = str(row[f'e{idx}h']).strip()  # time
+
         # check the answer
         pp = power.get(p, 0)
         if pp == 0:
             continue
 
         # calculate
-        coal_base = 0.1229  # fixed rate
+        coal_base = 0.1229  # fixed rate for electricity
+        adj = 0.7 if '变频' in a else 1
+        ee = eff.get(e, 0)
         tt = time.get(t, 0)
-        # power/hour * use hour * runtime * days * coal_base
-        r = pp * tt / 60 * 30 * 12 * coal_base
+        rt = runtime.get(f, 0)
+
+        # equation:
+        # output power (kW) * adjust / efficiency * time (hour/day) * run time(days) * coal base
+        r = pp * adj / ee * tt * rt * coal_base
 
         # save results
         result['id'] += [row['id']]
-        result['type'] += ['television']
-        result['appliance'] += ['']
+        result['type'] += ['ac']
+        result['appliance'] += [f'ac[{pp}kW]']
         result['power'] += [pp]
         result['efficiency'] += [e]
-        result['frequency'] += ['everyday']
+        result['frequency'] += [rt]
         result['time'] += [tt]
         result['use'] += [r]
 
@@ -555,39 +579,35 @@ def vehicle(row: dict) -> dict:
         - e70, fuel type
         - e72, actual fuel use
 
+    Notes: 1. mixed fuel is assumed to be used in half-half
+           2.
+
     :param row: a dict(row-like) data from dataframe
     :return: an updated dict
     """
     result = defaultdict(list)
-    time, power = CONFIG['time'], CONFIG['power']
+    dist, fuel, use = CONFIG['distance'], CONFIG['fuel'], CONFIG['vehicle']
 
-    # extract the parameters
-    p = str(row[f'e67']).strip()  # engine fuel use, ?L
-    e = str(row[f'e68']).strip()  # distance, 10,000km
-    t = str(row[f'e70']).strip()  # fuel type
-    t = str(row[f'e72']).strip()  # actual fuel use, ?L/100km
+    # parameters from conversion
+    # en = str(row[f'e67']).strip()  # engine fuel use, ?L
+    di = str(row[f'e68']).strip()  # distance, 10,000km
+    fu = str(row[f'e70']).strip()  # fuel type
+    us = str(row[f'e72']).strip()  # actual fuel use, ?L/100km
 
-    # check the answer
-    pp = power.get(p, 0)
-    if pp == 0:
-        continue
-
-    # calculate
-    coal_base = 0.1229  # fixed rate
-    tt = time.get(t, 0)
-    # power/hour * use hour * runtime * days * coal_base
-    r = pp * tt / 60 * 30 * 12 * coal_base
+    # calculation has two parts:
+    # fossil fuel vehicles:
+    # energy(kgce/year) = actual fuel use(L/100km) * distance(100km/year) * coal base
+    r = use.get(us, 0) * dist.get(di, 0) * 100 * fuel.get(fu)
 
     # save results
     result['id'] += [row['id']]
-    result['type'] += ['television']
-    result['appliance'] += ['']
-    result['power'] += [pp]
-    result['efficiency'] += [e]
-    result['frequency'] += ['everyday']
-    result['time'] += [tt]
+    result['type'] += ['vehicle']
+    result['appliance'] += ['car']
+    result['power'] += ['']
+    result['efficiency'] += ['']
+    result['frequency'] += ['annual']
+    result['time'] += ['']
     result['use'] += [r]
-
     return result
 
 
@@ -637,6 +657,29 @@ def add_vehicle(row: dict) -> dict:
     return result
 
 
+def add_fuel(row: dict) -> dict:
+    """
+    Add fuel-related variables to our dataset.
+    Mapping (1-10):
+        e89, fuel type used in households
+             蜂窝煤/煤球,
+             煤块,
+             汽油,
+             柴油,
+             瓶装液化气,
+             管道天然气,
+             管道煤气,
+             畜禽粪便,
+             秸秆,
+             薪柴
+
+    :param row: a dict(row-like) data from dataframe
+    :return: an updated dict
+    """
+
+    return
+
+
 if __name__ == '__main__':
     # load unconverted data
     raw_datafile = Path('data') / 'CGSS-unprocessed-202302.xlsx'
@@ -655,9 +698,9 @@ if __name__ == '__main__':
     del missings
 
     # check missing data
-    proc = pd.read_excel(cal_datafile, engine='openpyxl', sheet_name='照明')
+    proc = pd.read_excel(cal_datafile, engine='openpyxl', sheet_name='空调')
     missing = checker(proc, raw, mode='all')
 
-    # calculate energy use
+    # unittest for each source of energy use
     row = proc.loc[2, :].to_dict()
     cooking(row)
