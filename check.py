@@ -49,6 +49,18 @@ def checker(proc: pd.DataFrame, raw: pd.DataFrame, mode='find'):
     return pd.DataFrame(rows)
 
 
+def add_general(org: pd.DataFrame, tar: pd.DataFrame, columns: dict) -> pd.DataFrame:
+    """
+    Add up general data to the original dataframe
+
+    :param org: original dataframe
+    :param tar: target dataframe
+    :return: an updated dataframe
+    """
+    sub = tar[['id'] + columns]
+    return org.merge(sub, on='id', how='left')
+
+
 # aspect-specific calculation
 def cooking(row: dict) -> dict:
     """

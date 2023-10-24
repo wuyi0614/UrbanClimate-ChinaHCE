@@ -211,9 +211,9 @@
     }
   },
   "lighting": {
-    "fluorescent": 30,
+    "fluorescent": 40,
     "incandescent": 40,
-    "energy-saving": 20
+    "energy-saving": 8
   },
   "waterheating": {
     "储水式": {
