@@ -9,7 +9,8 @@ pandas = "*"
 openpyxl = "*"
 matplotlib = "*"
 
-#
+# utils
+tqdm = "*"
 
 [dev-packages]
 

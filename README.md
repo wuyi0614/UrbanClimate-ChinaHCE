@@ -18,6 +18,9 @@ The repo for the data and codes from the paper about China's HCE to be published
   - [ ] Machine learning approaches - ZYX
 - [ ] Results
   - [ ] City-level energy consumption and emissions - YW
+    - [ ] city-level policies 
+    - [ ] city-level percap emissions / percap HCEs
+    - [ ] a chart showing the average city percap emission and urban/rural hce
   - [ ] HCE inequality by regions - YW & ZYX
   - [ ] A machine learning-based HCE typology - ZYX
 - [ ] Discussion
