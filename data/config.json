@@ -61,6 +61,26 @@
       "use_perhour": 0.491,
       "use_unit": "kg"
     },
+    "柴火灶/土灶（畜禽粪便）": {
+      "power": 4,
+      "power_unit": "kw",
+      "heat_load": 1720,
+      "kcal": 3500,
+      "coal_base": 0.471,
+      "coal_base_unit": "kgce/kg",
+      "use_perhour": 0.522,
+      "use_unit": "kg"
+    },
+    "太阳能灶": {
+      "power": 0,
+      "power_unit": "kw",
+      "heat_load": 0,
+      "kcal": 0,
+      "coal_base": 0,
+      "coal_base_unit": "kgce/kg",
+      "use_perhour": 0,
+      "use_unit": "kg"
+    },
     "电饭煲": {
       "power": "",
       "power_unit": "kw",
@@ -119,6 +139,26 @@
       "coal_base": 0.1229,
       "coal_base_unit": "kgce/kwh",
       "use_perhour": "",
+      "use_unit": "kwh"
+    },
+    "油炉": {
+      "power": 4,
+      "power_unit": "kw",
+      "heat_load": "",
+      "kcal": "",
+      "coal_base": 1.4571,
+      "coal_base_unit": "kgce/kwh",
+      "use_perhour": 0.169,
+      "use_unit": "kwh"
+    },
+    "沼气炉": {
+      "power": 4,
+      "power_unit": "kw",
+      "heat_load": "",
+      "kcal": "",
+      "coal_base": 0.714,
+      "coal_base_unit": "kgce/kwh",
+      "use_perhour": 0.344,
       "use_unit": "kwh"
     },
     "其他": {
@@ -255,6 +295,10 @@
       "电力": {
         "mean_power": 2,
         "unit": "kW/h"
+      },
+      "太阳能": {
+        "mean_power": 1.5,
+        "unit": "kW/h"
       }
     },
     "即热式": {
@@ -267,7 +311,7 @@
         "unit": "m3/h"
       },
       "太阳能": {
-        "mean_power": 0,
+        "mean_power": 0.4514,
         "unit": "kgce"
       },
       "太阳能电加热": {
@@ -448,7 +492,8 @@
     "93号汽油（京标92号）": 1.4717,
     "混合动力（汽油+天然气）": 1.34335,
     "乙醇汽油": 1.19305,
-    "天然气": 1.215
+    "天然气": 1.215,
+    "禽畜粪便": 0.471
   },
   "electricity": {
     "hebei": 0.3056,

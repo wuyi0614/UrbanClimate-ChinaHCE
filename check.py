@@ -428,8 +428,7 @@ def _centric_heating(row: dict) -> dict:
 
 
 def _self_heating(row) -> dict:
-    runtime, area, fuel, time, heat = CONFIG['runtime'], CONFIG['area'], CONFIG['fuel'], CONFIG['time'], CONFIG[
-        'heating']
+    runtime, area, fuel, time, heat = CONFIG['runtime'], CONFIG['area'], CONFIG['fuel'], CONFIG['time'], CONFIG['heating']
     result = defaultdict(list)
     for i, idx in enumerate(range(53, 56)):
         iac = 0
@@ -447,9 +446,9 @@ def _self_heating(row) -> dict:
         if '空调' in y:
             coal_base = 0.1229  # electricity
             rac = ac(row)  # extract power, ee
-            if rac['use']:
+            if rac['use'] and iac <= len(rac['use']):
                 adj = 0.7 if '变频' in rac['appliance'] else 1
-                r = rac['pp'][iac] * adj / rac['ee'][iac] * tt * rt * coal_base
+                r = rac['power'][iac] * adj / rac['efficiency'][iac] * tt * rt * coal_base
                 iac += 1  # count + 1 if the order of ACs is not consistent
             else:
                 r = 0
@@ -579,6 +578,7 @@ def waterheating(row: dict) -> dict:
     """
     Household water heating energy consumption conversion.
     Mapping (e57x-e58x):
+        - e2, days/week in house
         - e57a, name/type
         - e57b, fuel type
         - e57e, frequency
@@ -592,6 +592,9 @@ def waterheating(row: dict) -> dict:
     time, freq, fuel = CONFIG['time'], CONFIG['freq'], CONFIG['fuel']
     eff = CONFIG['ee']['waterheating']
 
+    w = str(row['e2']).strip()
+    ww = float(w) * 52 if w else 0
+
     result = defaultdict(list)
     for i, idx in enumerate(range(57, 59)):
         # extract the parameters
@@ -604,7 +607,6 @@ def waterheating(row: dict) -> dict:
             continue
 
         # check the answer
-        use_perhour = conf[n][y]['mean_power']  # which type with what fuel
         ff = freq.get(f, 0) / 30
         tt = time.get(t, 0) / 60
         ee = eff.get(e, 0)
@@ -614,19 +616,21 @@ def waterheating(row: dict) -> dict:
         #    power(kW) * work hour(hour/times)[regular + use hours(0.5*times/th)] * eff * (days/year) * coal base
         # 2. instant water heater
         if n == '储水式':
+            use_perhour = 1.5 if y == '太阳能' else 2  # storage water heater only has solar/electric types
             coal_base = 0.1229
             work_hour_regular = 3  # 3 hours per day if it runs for 24h
             threshold_work = 1.025  # actual freq = frequency / threshold_work (average use times per family)
             actual_freq = ff / threshold_work
-            r = use_perhour * (work_hour_regular + actual_freq * 0.5) * ee * 365 * coal_base
+            r = use_perhour * (work_hour_regular + actual_freq * 0.5) * ee * ww * coal_base
         else:
+            use_perhour = conf[n][y]['mean_power']  # which type with what fuel
             if y == '电力':
                 coal_base = 0.1229
-                r = use_perhour * tt * 365 * coal_base
+                r = use_perhour * tt * ww * coal_base
             elif '太阳能' in y:
-                r = use_perhour * 365
+                r = use_perhour * ww
             else:
-                r = use_perhour * tt * 365 * fuel[y]
+                r = use_perhour * tt * ww * fuel[y]
 
         # save results
         result['id'] += [row['id']]
