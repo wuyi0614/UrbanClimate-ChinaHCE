@@ -12,6 +12,9 @@ from pathlib import Path
 CONFIGFILE = Path('data') / 'config.json'
 CONFIG = json.loads(CONFIGFILE.read_text('utf8'))
 
+MAPPINGFILE = Path('data') / 'mapping.json'
+MAPPING = json.loads(MAPPINGFILE.read_text('utf8'))
+
 
 # redo the data merging
 def checker(proc: pd.DataFrame, raw: pd.DataFrame, mode='find'):
@@ -428,7 +431,8 @@ def _centric_heating(row: dict) -> dict:
 
 
 def _self_heating(row) -> dict:
-    runtime, area, fuel, time, heat = CONFIG['runtime'], CONFIG['area'], CONFIG['fuel'], CONFIG['time'], CONFIG['heating']
+    runtime, area, fuel, time, heat = CONFIG['runtime'], CONFIG['area'], CONFIG['fuel'], CONFIG['time'], CONFIG[
+        'heating']
     result = defaultdict(list)
     for i, idx in enumerate(range(53, 56)):
         iac = 0
@@ -523,52 +527,6 @@ def heating(row: dict) -> dict:
         result['efficiency'] += ['']
         result['frequency'] += ['']
         result['time'] += ['']
-        result['use'] += [r]
-
-    return result
-
-
-def add_heating(row: dict) -> dict:
-    """
-    Household television energy consumption conversion.
-    Mapping:
-        - e39, heating source, 1-centric, 2-individual, 3-mixed, 4-no
-        - e41, heating mode, 1-steam, 2-hot water, 3-hot wind
-        - e42, run time, months
-        - e44, heating area
-        - e46, temperature
-
-    :param row: a dict(row-like) data from dataframe
-    :return: an updated dict
-    """
-    result = defaultdict(list)
-    for i, idx in enumerate(range(26, 29)):
-        # NB. equation:
-        time, power = CONFIG['time'], CONFIG['power']
-
-        # extract the parameters
-        p = str(row[f'e{idx}e']).strip()  # power
-        e = str(row[f'e{idx}f']).strip()  # efficiency
-        t = str(row[f'e{idx}g']).strip()  # time
-        # check the answer
-        pp = power.get(p, 0)
-        if pp == 0:
-            continue
-
-        # calculate
-        coal_base = 0.1229  # fixed rate
-        tt = time.get(t, 0) / 60
-        # power/hour * use hour * runtime * days * coal_base
-        r = pp * tt * 30 * 12 * coal_base
-
-        # save results
-        result['id'] += [row['id']]
-        result['type'] += ['television']
-        result['appliance'] += ['']
-        result['power'] += [pp]
-        result['efficiency'] += [e]
-        result['frequency'] += ['everyday']
-        result['time'] += [tt]
         result['use'] += [r]
 
     return result
@@ -739,53 +697,47 @@ def vehicle(row: dict) -> dict:
     return result
 
 
-def add_vehicle(row: dict) -> dict:
+def add_vehicle(org: pd.DataFrame, raw:pd.DataFrame) -> pd.DataFrame:
     """
     Add vehicle-related variables to our dataset
     Mapping:
-        - e39, heating source, 1-centric, 2-individual, 3-mixed, 4-no
-        - e41, heating mode, 1-steam, 2-hot water, 3-hot wind
-        - e42, run time, months
-        - e44, heating area
-        - e46, temperature
+        - e64, if having cars or not
+        - e68, driving distance
+        - e70, fuel type
+        - e72, cleaner vehicles
 
-    :param row: a dict(row-like) data from dataframe
-    :return: an updated dict
+    :param org: the original dataframe that needs merging on
+    :param raw: the raw dataframe where the variables come from
+    :return: an updated dataframe
     """
+    # mapping configuration
+    dist, use = CONFIG['distance'], CONFIG['vehicle']
+    fuel = MAPPING['fuel']['vehicle']
+
     result = defaultdict(list)
-    for i, idx in enumerate(range(26, 29)):
-        # NB. equation:
-        time, power = CONFIG['time'], CONFIG['power']
+    for _, row in tqdm(raw.iterrows(), desc='Adding vehicle:'):
+        di = str(row['e64']).strip()  # 1/0, having cars
+        ds = str(row['e68']).strip()  # driving distance
+        fu = str(row[f'e70']).strip()  # fuel type
+        us = str(row[f'e72']).strip()  # actual fuel use, ?L/100km
 
-        # extract the parameters
-        p = str(row[f'e{idx}e']).strip()  # power
-        e = str(row[f'e{idx}f']).strip()  # efficiency
-        t = str(row[f'e{idx}g']).strip()  # time
-        # check the answer
-        pp = power.get(p, 0)
-        if pp == 0:
-            continue
+        di = 1 if '是' in di else 0
+        ds = dist.get(ds, 0)
+        fu = fuel.get(fu, 7)  # 7 is the other/unrecognised
+        us = use.get(us, 0)
 
-        # calculate
-        coal_base = 0.1229  # fixed rate
-        tt = time.get(t, 0) / 60
-        # power/hour * use hour * runtime * days * coal_base
-        r = pp * tt * 30 * 12 * coal_base
-
-        # save results
         result['id'] += [row['id']]
-        result['type'] += ['television']
-        result['appliance'] += ['']
-        result['power'] += [pp]
-        result['efficiency'] += [e]
-        result['frequency'] += ['everyday']
-        result['time'] += [tt]
-        result['use'] += [r]
+        result['vehicle_num'] += [di]
+        result['vehicle_dist'] += [ds]
+        result['vehicle_fuel'] += [fu]
+        result['vehicle_use'] += [us]
 
-    return result
+    # merging up
+    result = pd.DataFrame(result)
+    return org.merge(result, on='id', how='left')
 
 
-def add_fuel(row: dict) -> dict:
+def add_fuel(org: pd.DataFrame, raw:pd.DataFrame) -> pd.DataFrame:
     """
     Add fuel-related variables to our dataset.
     Mapping (1-10):
@@ -801,11 +753,19 @@ def add_fuel(row: dict) -> dict:
              秸秆,
              薪柴
 
-    :param row: a dict(row-like) data from dataframe
-    :return: an updated dict
+    :param org: the original dataframe that needs merging on
+    :param raw: the raw dataframe where the variables come from
+    :return: an updated dataframe
     """
+    result = defaultdict(list)
+    for _, row in tqdm(raw.iterrows(), desc='Adding fuel:'):
+        result['id'] += [row['id']]
+        for i in range(1, 11):
+            fu = str(row[f'e89_{i}']).strip()  # fuel type
+            result[f'fuel{i}'] += [1 if '是' in fu else 0]
 
-    return
+    result = pd.DataFrame(result)
+    return org.merge(result, on='id', how='left')
 
 
 def main(data: pd.DataFrame) -> pd.DataFrame:
@@ -835,20 +795,19 @@ if __name__ == '__main__':
 
     # load calculated data
     cal_datafile = Path('data') / 'CGSS-calculate-20231019.xlsx'
-    sheets = ['烹饪', '冰箱', '洗衣', '电视', '计算机', '照明', '采暖', '热水器', '空调', '交通']  # 总折算
-
-    missings = defaultdict(list)
-    for sheet in sheets:
-        proc = pd.read_excel(cal_datafile, engine='openpyxl', sheet_name=sheet)
-        missings[sheet] = list(set(raw['id']).difference(set(raw['id']).intersection(set(proc['id']))))
-
-    missings = pd.DataFrame(missings)  # raise error if they're in different lengths
-    del missings
+    # sheets = ['烹饪', '冰箱', '洗衣', '电视', '计算机', '照明', '采暖', '热水器', '空调', '交通']  # 总折算
 
     # check missing data
     proc = pd.read_excel(cal_datafile, engine='openpyxl', sheet_name='空调')
     missing = checker(proc, raw, mode='all')
     missing = add_general(missing, raw, columns=['e2'])
+
+    # add up variables
+    varfile = Path('data') / 'vardata-0207.xlsx'
+    var = pd.read_excel(varfile, engine='openpyxl')
+    var = add_vehicle(var, raw)
+    var = add_fuel(var, raw)
+    var.to_excel(Path('data') / 'vardata-1025.xlsx', index=False)
 
     # unittest for each source of energy use
     for i in range(0, 10):
