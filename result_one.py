@@ -5,10 +5,10 @@
 
 import json
 import pandas as pd
-
-from pathlib import Path
+import seaborn as sns
 import matplotlib.pyplot as plt
 
+from pathlib import Path
 
 # env variables
 MAPPINGFILE = Path('data') / 'mapping.json'
@@ -24,7 +24,7 @@ def get_cities(data: pd.DataFrame) -> pd.DataFrame:
     :return: an updated dataframe
     """
     city = MAPPING['city']
-    data['prefecture_eng'] = data['prefecture'].apply(lambda x: city.get(x, 'other'))
+    data['prefecture_eng'] = data['prefecture'].apply(lambda x: city.get(x, 'other').capitalize())
     return data
 
 
@@ -68,22 +68,44 @@ def analyse(data: pd.DataFrame) -> pd.DataFrame:
 
     :param data: a pre-processed dataframe
     """
+    data = data[data['en_total'] > 0]  # skip zero-value entries
     out = data[['prefecture_eng']]  # append data to the tot
-    # energy consumption by city
-    data['percap_all'] = data['en_total'] / data['size']
+    # energy consumption by region and city
 
-    # data by urban/rural
-    mask = data['resident'] == 1  # mask for being urban residents
+    data['percap_all'] = data['en_total'] / data['size']
+    # in order to correctly rank the cities, we need a customised list of cities
+    # the index of Shanghai is 38 (which is the first southern city)
+    cities = data.loc[data.region == 0, ['percap_all', 'prefecture_eng']].groupby('prefecture_eng').mean(). \
+                 sort_values(['percap_all'], ascending=False).index.tolist() + \
+             data.loc[data.region == 1, ['percap_all', 'prefecture_eng']].groupby('prefecture_eng').mean(). \
+                 sort_values(['percap_all'], ascending=False).index.tolist()
+    # rebuild the chart dataset by the order of cities
+    chart = pd.DataFrame()
+    for c in cities:
+        chart = pd.concat([chart, data[data['prefecture_eng'] == c]], axis=0)
+    # ... dataframe for boxplot
+    chart['resident'] = chart['resident'].apply(lambda x: 'Urban' if x == 1 else 'Rural')
+    # ... dataframe for lineplot
+    linechart = data[['region', 'en_total', 'size']].groupby('region').sum().reset_index()
+    # north: 432.47804712, south: 255.65224578
+    regional = (linechart['en_total'] / linechart['size']).values
 
     # pre-processing before making the chart
     # result one: percap energy use by urban/rural by cities
     fig = plt.figure(figsize=(10, 16))
-    for ci, g in data.groupby('prefecture_en'):
-        plt.boxplot(g['percap_all'], showfliers=False)
-        break
+    sns.boxplot(y='prefecture_eng', x='percap_all', hue='resident', gap=.1,
+                data=chart, linewidth=1.5, palette='Set2', fliersize=0)
+    plt.xlim(0, 4500)  # the maximum value is <4500
+    plt.xticks(size=12)
+    plt.ylabel('Cities', fontsize=12)
+    plt.xlabel('Energy consumption per capita (kgce/person)', fontsize=14)
+    plt.legend(loc=4, fontsize=12)
 
+    # adjust the margins
+    plt.margins(0.01)
+    plt.tight_layout()
+    fig.savefig('img/figure1.pdf', format='pdf', dpi=200)
     plt.show()
-    return
 
 
 def create_regional_variable(series):
@@ -124,7 +146,7 @@ def create_regional_variable(series):
 
 if __name__ == '__main__':
     # merging data and test
-    datafile = Path('data') / 'vardata-1025.xlsx'
+    datafile = Path('data') / 'vardata-1030.xlsx'
     data = pd.read_excel(datafile, engine='openpyxl')
     engfile = Path('data') / 'energyuse-1024.xlsx'
     eng = pd.read_excel(engfile, engine='openpyxl')
