@@ -7,6 +7,8 @@ import json
 import pandas as pd
 
 from pathlib import Path
+import matplotlib.pyplot as plt
+
 
 # env variables
 MAPPINGFILE = Path('data') / 'mapping.json'
@@ -22,7 +24,7 @@ def get_cities(data: pd.DataFrame) -> pd.DataFrame:
     :return: an updated dataframe
     """
     city = MAPPING['city']
-    data['prefecture_en'] = data['prefecture'].apply(lambda x: city.get(x, 'other'))
+    data['prefecture_eng'] = data['prefecture'].apply(lambda x: city.get(x, 'other'))
     return data
 
 
@@ -58,15 +60,29 @@ def get_energy(data: pd.DataFrame) -> pd.DataFrame:
 
 
 def analyse(data: pd.DataFrame) -> pd.DataFrame:
+    """
+    The dataframe should contain `region` column before analysing and the chart has the following parts:
+    - mean values by cities - box plot
+    - mean values by urban/rural - box plot
+    - mean values by north/south - solid lines
+
+    :param data: a pre-processed dataframe
+    """
+    out = data[['prefecture_eng']]  # append data to the tot
     # energy consumption by city
-    by_pref_all = merged[['en_total', 'prefecture']].groupby('prefecture').mean()
+    data['percap_all'] = data['en_total'] / data['size']
 
-    mask = merged['resident'] == 1  # mask for being urban residents
-    by_pref_urban = merged.loc[mask, ['en_total', 'prefecture']].groupby('prefecture').mean()
-    by_pref_rural = merged.loc[~mask, ['en_total', 'prefecture']].groupby('prefecture').mean()
+    # data by urban/rural
+    mask = data['resident'] == 1  # mask for being urban residents
 
-    #
+    # pre-processing before making the chart
+    # result one: percap energy use by urban/rural by cities
+    fig = plt.figure(figsize=(10, 16))
+    for ci, g in data.groupby('prefecture_en'):
+        plt.boxplot(g['percap_all'], showfliers=False)
+        break
 
+    plt.show()
     return
 
 
@@ -121,5 +137,29 @@ if __name__ == '__main__':
     _, merged['region'] = create_regional_variable(merged['province'])
     merged.to_excel(Path('data') / 'mergedata-1027.xlsx', index=False)
 
-    # check the data distribution
-    merged[['region', 'en_total_no_vehicle']].groupby('region').mean()
+    """ check the data distribution (should be attached to the appendix)
+                en_total_no_vehicle
+    region                     
+    0               1003.835610
+    1                554.723219
+    = 1.81
+               en_total
+    region             
+    0       1210.287436
+    1        742.899574
+    = 1.63
+    """
+    diff = merged[['region', 'en_total_no_vehicle']].groupby('region').mean()
+    diff = merged[['region', 'en_total']].groupby('region').mean()
+
+    # city-level variables
+    cityfile = Path('data') / 'citydata-1029.xlsx'
+    city = pd.read_excel(cityfile, header=[0], skiprows=[1])
+    i = set(merged.prefecture.values).intersection(set(city.Ctnm.values))
+    mask = (city['Ctnm'].isin(i)) & (city['Year'] == 2014)
+    city = city.loc[mask, ['Ctnm', 'CtEngcnsmp', 'Ppln_Horgpuye']]  # CtEngcnsmp: 10,000 tce,
+    city.columns = ['city', 'energy', 'pop']
+    city['eng_percap'] = city['energy'] / city['pop']
+
+    foo = merged[['prefecture', 'en_total', 'size']].groupby('prefecture').sum()
+    foo['en_total'] / foo['size'] / 1000

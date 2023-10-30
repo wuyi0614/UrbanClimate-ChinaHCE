@@ -16,15 +16,18 @@ Notably, as accounting the carbon emission based on the survey is rather difficu
   - [ ] What gap exists in the current researches? -- highly dependent on a fixed range of factors, and lack of deep understanding of lifestyle and behaviors of Households
 - [ ] Methodology and data description (& a graphic methodology)
   - [ ] Survey samples and city-level data - YW & ZYX
-  - [ ] Energy consumption and emission data processing - YW
+  - [ ] Energy consumption and emission data processing and inequality indicators - YW
   - [ ] Machine learning approaches - ZYX
 - [ ] Results
   - [ ] City-level energy consumption and emissions - YW
     - [ ] city-level policies 
     - [ ] city-level percap energy consumption
-    - [ ] a chart showing the average city percap emission and urban/rural hce
-  - [ ] HCE inequality by regions - YW & ZYX
+  - [ ] HEC inequality by types and by regions - YW & ZYX
+    - [ ] General inequality by types (essential/additional or electrified/fossil)
+    - [ ] Regional inequality and their components
   - [ ] A machine learning-based HCE typology - ZYX
+    - [ ] Typology analysis
+    - [ ] Urban/rural typology analysis
 - [ ] Discussion
   - [ ] *pending*
 

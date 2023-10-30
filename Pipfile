@@ -7,7 +7,7 @@ name = "pip_conf_index_global"
 # data processing and visualisation
 pandas = "*"
 openpyxl = "*"
-matplotlib = "*"
+matplotlib = "3.5.3"
 
 # utils
 tqdm = "*"
