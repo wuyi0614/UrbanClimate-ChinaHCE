@@ -10,6 +10,9 @@ openpyxl = "*"
 matplotlib = "==3.5.3"
 seaborn = "*"
 
+# machine learning
+scikit-learn = "*"
+
 # utils
 tqdm = "*"
 

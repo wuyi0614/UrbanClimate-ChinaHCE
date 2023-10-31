@@ -157,7 +157,7 @@ if __name__ == '__main__':
     merged = get_cities(merged)
     merged = get_percap(merged, columns=['en_total'])
     _, merged['region'] = create_regional_variable(merged['province'])
-    merged.to_excel(Path('data') / 'mergedata-1027.xlsx', index=False)
+    merged.to_excel(Path('data') / 'mergedata-1030.xlsx', index=False)
 
     """ check the data distribution (should be attached to the appendix)
                 en_total_no_vehicle
