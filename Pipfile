@@ -7,7 +7,11 @@ name = "pip_conf_index_global"
 # data processing and visualisation
 pandas = "*"
 openpyxl = "*"
-matplotlib = "*"
+matplotlib = "==3.5.3"
+seaborn = "*"
+
+# machine learning
+scikit-learn = "*"
 
 # utils
 tqdm = "*"

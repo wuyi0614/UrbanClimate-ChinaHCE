@@ -402,21 +402,22 @@ def _centric_heating(row: dict) -> dict:
         'heating']
 
     t = str(row['e39']).strip()  # heating type
+    r = str(row['e42']).strip()  # run time
     a = str(row['e44']).strip()  # area
-    y = str(row['e3']).strip()  # construction year
+    y = str(row['e3']).strip()   # construction year
     m1 = str(row['e7']).strip()  # window/door, -10%
     m2 = str(row['e8']).strip()  # wall, -30%
     m3 = str(row['e9']).strip()  # ceiling, -10%
 
     # converted the above
-    yy = heat.get(y, 0)
+    yy = heat.get(y, 0)  # ? kgce/m2, energy use / unit area
     m1 = year.get(m1, 0) * 0.1
     m2 = year.get(m2, 0) * 0.3
     m3 = year.get(m3, 0) * 0.1
 
     result = defaultdict(list)
-    tt = runtime.get(t, 3.43) / 3.43
-    aa = area.get(a, 115)  # 115 m2 as default for the average
+    tt = runtime.get(r, 3.43) / 3.43  # heating run time (months)
+    aa = area.get(a, 115)  # 115 m2 as default for the average (m2)
     r = yy * (1 - m1) * (1 - m2) * (1 - m3) * tt * aa
 
     result['id'] += [row['id']]
@@ -431,8 +432,8 @@ def _centric_heating(row: dict) -> dict:
 
 
 def _self_heating(row) -> dict:
-    runtime, area, fuel, time, heat = CONFIG['runtime'], CONFIG['area'], CONFIG['fuel'], CONFIG['time'], CONFIG[
-        'heating']
+    area, fuel, time, heat = CONFIG['area'], CONFIG['fuel'], CONFIG['time'], CONFIG['heating']
+    runtime = CONFIG['runtime']
     result = defaultdict(list)
     for i, idx in enumerate(range(53, 56)):
         iac = 0
@@ -443,7 +444,7 @@ def _self_heating(row) -> dict:
         rt = str(row[f'e{idx}c']).strip()  # run time
         a = str(row[f'e{idx}f']).strip()  # area, m2
 
-        tt = time.get(t, 0)  # hours
+        tt = time.get(t, 0) / 60  # hours
         rt = runtime.get(rt, 0) * 30  # months
         aa = area.get(a, 0)  # area, m2
 
@@ -516,19 +517,22 @@ def heating(row: dict) -> dict:
         return _centric_heating(row)
     elif t == '分户自供暖':
         return _self_heating(row)
+    elif t == '没有供暖':
+        r = 0
     else:  # mixed (0.5 * centric + 0.5 * self)
         r1 = _centric_heating(row)
         r2 = _self_heating(row)
         r = (sum(r1['use']) + sum(r2['use'])) / 2
-        result['id'] += [row['id']]
-        result['type'] += ['heating']
-        result['appliance'] += [t]
-        result['power'] += ['']
-        result['efficiency'] += ['']
-        result['frequency'] += ['']
-        result['time'] += ['']
-        result['use'] += [r]
 
+    # fill up data and return values
+    result['id'] += [row['id']]
+    result['type'] += ['heating']
+    result['appliance'] += [t]
+    result['power'] += ['']
+    result['efficiency'] += ['']
+    result['frequency'] += ['']
+    result['time'] += ['']
+    result['use'] += [r]
     return result
 
 
@@ -636,7 +640,7 @@ def ac(row: dict) -> dict:
         coal_base = 0.1229  # fixed rate for electricity
         adj = 0.7 if '变频' in a else 1
         ee = eff.get(e, 0)
-        tt = time.get(t, 0)
+        tt = time.get(t, 0) / 60
         rt = runtime.get(f, 0)
 
         # equation:
@@ -796,18 +800,17 @@ if __name__ == '__main__':
     # load calculated data
     cal_datafile = Path('data') / 'CGSS-calculate-20231019.xlsx'
     # sheets = ['烹饪', '冰箱', '洗衣', '电视', '计算机', '照明', '采暖', '热水器', '空调', '交通']  # 总折算
-
     # check missing data
     proc = pd.read_excel(cal_datafile, engine='openpyxl', sheet_name='空调')
     missing = checker(proc, raw, mode='all')
     missing = add_general(missing, raw, columns=['e2'])
 
     # add up variables
-    varfile = Path('data') / 'vardata-0207.xlsx'
+    varfile = Path('data') / 'vardata-1030.xlsx'
     var = pd.read_excel(varfile, engine='openpyxl')
     var = add_vehicle(var, raw)
     var = add_fuel(var, raw)
-    var.to_excel(Path('data') / 'vardata-1025.xlsx', index=False)
+    var.to_excel(Path('data') / 'vardata-1030.xlsx', index=False)
 
     # unittest for each source of energy use
     for i in range(0, 10):
@@ -825,3 +828,4 @@ if __name__ == '__main__':
 
     # overall test
     use = main(raw)
+    use.to_excel(Path('data') / 'energyuse-1024.xlsx', index=False)
