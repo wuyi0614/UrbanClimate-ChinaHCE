@@ -3,26 +3,31 @@ The repo for the data and codes from the paper about China's HCE to be published
 
 ## Outline
 
-*Edited on 18 Oct 2023*
+*Edited on 27 Oct 2023*
 
-*Title: City-level household carbon emission typology and implications: a machine learning-based approach(pending)*
+Notably, as accounting the carbon emission based on the survey is rather difficult, we use energy consumption instead for analysis.
+
+*Title: City-level household energy consumption typology and implications: a machine learning-based approach(pending)*
 - [ ] Abstract (dependent on findings) - YW
 - [ ] Introduction & Literature Review
-  - [ ] Cities account for a majority of emissions & household energy/lifestyle emissions
-  - [ ] Understanding of Chinese cities' emission and HCEs
+  - [ ] Cities account for a majority of energy consumption & household energy/lifestyle energy consumption
+  - [ ] Understanding of Chinese cities' energy consumption and emissions
   - [ ] What approaches have been applied to explore HCEs and what findings regarding urban/rural HCEs
   - [ ] What gap exists in the current researches? -- highly dependent on a fixed range of factors, and lack of deep understanding of lifestyle and behaviors of Households
 - [ ] Methodology and data description (& a graphic methodology)
   - [ ] Survey samples and city-level data - YW & ZYX
-  - [ ] Energy consumption and emission data processing - YW
+  - [ ] Energy consumption and emission data processing and inequality indicators - YW
   - [ ] Machine learning approaches - ZYX
 - [ ] Results
   - [ ] City-level energy consumption and emissions - YW
     - [ ] city-level policies 
-    - [ ] city-level percap emissions / percap HCEs
-    - [ ] a chart showing the average city percap emission and urban/rural hce
-  - [ ] HCE inequality by regions - YW & ZYX
+    - [ ] city-level percap energy consumption
+  - [ ] HEC inequality by types and by regions - YW & ZYX
+    - [ ] General inequality by types (essential/additional or electrified/fossil)
+    - [ ] Regional inequality and their components
   - [ ] A machine learning-based HCE typology - ZYX
+    - [ ] Typology analysis
+    - [ ] Urban/rural typology analysis
 - [ ] Discussion
   - [ ] *pending*
 
