@@ -4,11 +4,13 @@
 #
 
 import json
+import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
 from pathlib import Path
+from config import WSJ
 
 # env variables
 MAPPINGFILE = Path('data') / 'mapping.json'
@@ -59,7 +61,84 @@ def get_energy(data: pd.DataFrame) -> pd.DataFrame:
     return pivot
 
 
-def analyse(data: pd.DataFrame) -> pd.DataFrame:
+def city_lifestyle_chart(energy: pd.DataFrame) -> pd.DataFrame:
+    """
+    This function illustrates the components of energy consumption from each category
+
+    :param energy: the energy dataframe
+    :return: the used dataframe
+    """
+    # the chart has a shared Y-axis and two X-axis and the left X-axis will be the count of appliances
+    # and the right x-axis will be the component energy consumption
+    energy['appliance'] = energy['appliance'].fillna(1)
+    prefs = energy[['id', 'prefecture_eng']].drop_duplicates()
+
+    # 1. count the number of appliances
+    ckeys = ['id', 'type', 'appliance']
+    count = energy[ckeys].pivot_table(index='id', columns='type', values='appliance', aggfunc='count').reset_index()
+    count = count.fillna(0)  # replace NAs by 0
+    count = count.merge(prefs, on='id', how='left')
+    count = count.groupby('prefecture_eng').mean().reset_index()
+    # count = count.melt(id_vars=['prefecture_eng'], value_vars=apps)
+
+    # 2. grouped energy consumption
+    ckeys = ['id', 'type', 'use']
+    use = energy[ckeys].pivot_table(index='id', columns='type', values='use', aggfunc=sum).reset_index()
+    use = use.fillna(0)  # replace NAs by 0
+    use = use.merge(prefs, on='id', how='left')
+    use = use.groupby('prefecture_eng').mean().reset_index()
+
+    # reshape the above data by cities (must do it in two steps because count/sum on the city level does not reflect
+    # the average level of ownership or energy consumption
+    apps = ['appliance', 'cooking', 'heating', 'vehicle', 'waterheating']
+    app_names = ['Appliance', 'Cooking', 'Heater', 'Vehicle', 'Water heater']
+    cities = use['prefecture_eng'].values
+
+    # create the canvas
+    fig, ax1 = plt.subplots(figsize=(12, 16))
+
+    x_range = range(len(count))  # fixed x-range
+    bot_left, bot_right = np.zeros(len(count)), np.zeros(len(count))
+
+    colors = list(WSJ.values())
+    for i, a in enumerate(apps):
+        # count chart: 0~15
+        y_left = -1 * count[a].values
+        ax1.barh(x_range, y_left, left=bot_left, alpha=0.65, label=app_names[i], color=colors[i], edgecolor='grey')
+        bot_left = bot_left + y_left
+
+    plt.margins(0.01)
+    ax2 = ax1.twinx()  # create the new axis
+    for i, a in enumerate(apps):
+        # use chart: 0~4000
+        y_right = use[a].values / 100
+        ax2.barh(x_range, y_right, left=bot_right, alpha=0.65, label=app_names[i], color=colors[i], edgecolor='grey')
+        bot_right = bot_right + y_right
+
+    # adjust x-axis range
+    plt.margins(0.01)
+    ax1.set_yticks(x_range, cities, size=12)
+    ax1.set_xticks(range(-15, 26, 5), [abs(i) for i in range(-15, 26, 5)], size=14)
+    ax1.tick_params(left=False)
+    ax1.tick_params(bottom=False)
+    ax2.set_yticks([])
+    plt.xlim(-15, 25)
+
+    # remove spines for both subplots
+    ax1.spines['top'].set_visible(False)
+    ax2.spines['top'].set_visible(False)
+    ax1.spines['right'].set_visible(False)
+    ax2.spines['right'].set_visible(False)
+    ax1.spines['left'].set_visible(False)
+    ax2.spines['left'].set_visible(False)
+
+    plt.tight_layout()
+    plt.legend(loc=7, fontsize=14)
+    fig.savefig('img/figure2.pdf', format='pdf', dpi=200)
+    plt.show()
+
+
+def city_energy_chart(data: pd.DataFrame) -> pd.DataFrame:
     """
     The dataframe should contain `region` column before analysing and the chart has the following parts:
     - mean values by cities - box plot
@@ -93,10 +172,15 @@ def analyse(data: pd.DataFrame) -> pd.DataFrame:
     # pre-processing before making the chart
     # result one: percap energy use by urban/rural by cities
     fig = plt.figure(figsize=(10, 16))
+    ax = plt.gca()
+
     sns.boxplot(y='prefecture_eng', x='percap_all', hue='resident', gap=.1,
                 data=chart, linewidth=1.5, palette='Set2', fliersize=0)
     plt.xlim(0, 4500)  # the maximum value is <4500
     plt.xticks(size=12)
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+
     plt.ylabel('Cities', fontsize=12)
     plt.xlabel('Energy consumption per capita (kgce/person)', fontsize=14)
     plt.legend(loc=4, fontsize=12)
@@ -148,16 +232,16 @@ if __name__ == '__main__':
     # merging data and test
     datafile = Path('data') / 'vardata-1030.xlsx'
     data = pd.read_excel(datafile, engine='openpyxl')
-    engfile = Path('data') / 'energyuse-1024.xlsx'
-    eng = pd.read_excel(engfile, engine='openpyxl')
-    eng = get_energy(eng)
+    energyfile = Path('data') / 'energyuse-1103.xlsx'
+    energy = pd.read_excel(energyfile, engine='openpyxl')
+    energy = get_energy(energy)
 
-    merged = data.merge(eng, on='id', how='left')
+    merged = data.merge(energy, on='id', how='left')
     # preprocess
     merged = get_cities(merged)
     merged = get_percap(merged, columns=['en_total'])
     _, merged['region'] = create_regional_variable(merged['province'])
-    merged.to_excel(Path('data') / 'mergedata-1030.xlsx', index=False)
+    merged.to_excel(Path('data') / 'mergedata-1103.xlsx', index=False)
 
     """ check the data distribution (should be attached to the appendix)
                 en_total_no_vehicle
@@ -184,4 +268,15 @@ if __name__ == '__main__':
     city['eng_percap'] = city['energy'] / city['pop']
 
     foo = merged[['prefecture', 'en_total', 'size']].groupby('prefecture').sum()
-    foo['en_total'] / foo['size'] / 1000
+
+    # energy consumption chart
+    city_energy_chart(merged)
+
+    # add a new chart to the result one section
+    energy = pd.read_excel(energyfile, engine='openpyxl')
+    # use merged data to append the city info [prefecture_eng]
+    energy = energy.merge(merged[['id', 'prefecture_eng']], on='id', how='left')
+    # reduce 10 categories into 6 categories
+    compress_keys = ['ac', 'computer', 'freezing', 'laundry', 'lighting', 'television']
+    energy['type'] = energy['type'].apply(lambda x: 'appliance' if x in compress_keys else x)
+    city_lifestyle_chart(energy)

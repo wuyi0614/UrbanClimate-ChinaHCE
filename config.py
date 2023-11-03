@@ -7,8 +7,22 @@ import numpy as np
 
 from collections import Counter
 
+# 0. Color paletts
+WSJ = {
+    "lightred": "#D5695D",
+    "lightgreen": "#65A479",
+    "lightblue": "#5D8CA8",
+    "lightyellow": "#D3BA68",
+    "darkred": "#B1283A",
+    "darkblue": "#016392",
+    "darkyellow": "#BE9C2E",
+    "darkgreen": "#098154",
+    "gray": "#808080",
+    "purple": "#9370DB"
+}
 
-# 1. 数据变量的数值转换
+
+# 1. Numeric conversion
 # 以下为2014年CGSS数据表的变量转换（注意统一转换函数的写法，确保在运行的时候代码是一致的）
 # 另外要注意的是，数据表里，表头下一行是问题的说明，并非数据要避开
 
@@ -537,8 +551,8 @@ def converter_cooking(data: pd.DataFrame):
         da[f'{de}-freq'] = da[f'{de}d'].apply(_freq_process)
 
     # 尽量将不同的变量都整合到一起，比如计算平均功率，平均使用频率
-    cpower = da[[f'{de}-power' for de in devices]].apply(lambda x: x[x>0].mean(), axis=1).fillna(-99)
-    cfreq = da[[f'{de}-freq' for de in devices]].apply(lambda x: x[x>0].mean(), axis=1).fillna(-99)
+    cpower = da[[f'{de}-power' for de in devices]].apply(lambda x: x[x > 0].mean(), axis=1).fillna(-99)
+    cfreq = da[[f'{de}-freq' for de in devices]].apply(lambda x: x[x > 0].mean(), axis=1).fillna(-99)
     cnum['cook_power'] = cpower
     cnum['cook_freq'] = cfreq
     return cnum
@@ -677,10 +691,10 @@ def create_demographic_variable(age, rel_array):
     couple = lambda x: set(x) == {0, -99}  # 也是老年夫妻的条件之一
     couple_kid_one = lambda x: set(x) == {0, 3, -99} or (set(x) == {2, -99} and Counter(x)[2] > 1)
     couple_kid_two = lambda x: (set(x) == {0, 3, -99} and Counter(x)[3] > 1) or (
-                set(x) == {1, 2, -99} and Counter(x)[2] > 1)
+            set(x) == {1, 2, -99} and Counter(x)[2] > 1)
     single_kid_one = lambda x: set(x) == {3, -99} or (set(x) == {2, -99} and Counter(x)[2] == 1)
     single_kid_two = lambda x: (set(x) == {3, -99} and Counter(x)[3] > 1) or (
-                set(x) == {1, 2, -99} and Counter(x)[2] == 1)
+            set(x) == {1, 2, -99} and Counter(x)[2] == 1)
     grand_parent_kids = lambda x: set(x) == {4, -99} or set(x) == {5, -99} or set(x) == {0, 4, -99} or set(x) == {0, 5,
                                                                                                                   -99}
     big_family = lambda x: Counter(x)[-99] <= 10

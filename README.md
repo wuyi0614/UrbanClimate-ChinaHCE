@@ -20,14 +20,14 @@ Notably, as accounting the carbon emission based on the survey is rather difficu
   - [ ] Machine learning approaches - ZYX
 - [ ] Results
   - [ ] City-level energy consumption and emissions - YW
-    - [ ] city-level policies 
-    - [ ] city-level percap energy consumption
+    - [ ] city-level (ownership(heatmap)/frequency/category-based difference)
+    - [x] city-level percap energy consumption
   - [ ] HEC inequality by types and by regions - YW & ZYX
     - [ ] General inequality by types (essential/additional or electrified/fossil)
     - [ ] Regional inequality and their components
   - [ ] A machine learning-based HCE typology - ZYX
-    - [ ] Typology analysis
-    - [ ] Urban/rural typology analysis
+    - [ ] Typology analysis - LASSO + factor identification
+    - [ ] Urban/rural typology analysis - clustering (attributes analysis)
 - [ ] Discussion
   - [ ] *pending*
 
