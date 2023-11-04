@@ -4,6 +4,7 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import shap as shap
 
 from tqdm import tqdm
 from sklearn.model_selection import GridSearchCV
@@ -32,8 +33,7 @@ def lasso_modelling(data: pd.DataFrame,
     result = GridSearchCV(model,
                           param_grid={'alpha': alpha_range, 'max_iter': [max_iteration]},
                           cv=5,
-                          scoring='neg_mean_absolute_error',
-                          n_jobs=2)
+                          scoring='neg_mean_absolute_error')
     result.fit(x, y)
     print('MAE: %.5f' % result.best_score_)
     print('Optimal param：\n', result.best_params_)
@@ -55,8 +55,8 @@ def lasso_modelling(data: pd.DataFrame,
         x_range = range(len(la_coef))
         plt.barh(x_range, la_coef.coef.values, color=la_coef.colors.values, label=f"Lasso alpha={min_weight}")
 
-        # ticks = [VAR_LABELS[k] for k in la_coef.vars.values]
-        # plt.yticks(x_range, labels=ticks, size=9, rotation=0)
+        ticks = [VAR_LABELS[k] for k in la_coef.vars.values]
+        plt.yticks(x_range, labels=ticks, size=9, rotation=0)
         plt.ylabel("Household features")
         plt.xlabel("Feature importance")
 
@@ -139,9 +139,10 @@ def clustering_modelling(data: pd.DataFrame,
 if __name__ == '__main__':
     # load data and tests
     from pathlib import Path
+    datafile = Path('data') / 'mergedata-1104.csv'
+    data = pd.read_csv(datafile)
 
-    datafile = Path('data') / 'mergedata-1030.xlsx'
-    data = pd.read_excel(datafile, engine='openpyxl')
+
     # preprocessing
     data = data.fillna(0).replace(-99, 0)
     # convert province/city id
@@ -150,22 +151,34 @@ if __name__ == '__main__':
     data['log_expenditure'] = np.log(data['expenditure'].values + 1)
     data['log_raw_income'] = np.log(data['raw_income'].values + 1)
     data['log_income_percap'] = np.log(data['income_percap'].values + 1)
+    data['log_en_total_no_vehicle_percap'] = np.log(data['en_total_no_vehicle_percap'].values + 1)
 
     data['province_id'] = data['province'].apply(lambda x: list(data['province'].unique()).index(x))
     data['prefecture_id'] = data['prefecture'].apply(lambda x: list(data['prefecture'].unique()).index(x))
     # final list of variables
-    var_demo = ['prefecture_id', 'region', 'age', 'house_area', 'size']
+    var_demo = ['prefecture_id', 'region', 'age', 'house_area', 'size','region_codes']
     var_econ = ['log_raw_income', 'log_expenditure', 'log_income_percap']
     var_live = ['outside', 'live_days']
     var_app = ['num_cooking', 'power_cooking', 'freq_cooking', 'time_cooking',
                'num_water_heater', 'freq_water_heater', 'time_water_heater',
                'label_water_heater', 'num_ac', 'freq_ac', 'power_ac', 'time_ac',
                'label_ac', 'type_heating', 'time_heating', 'area_heating',
-               'cost_heating', 'own_vehicle', 'emit_vehicle', 'fuel_vehicle',
+               'cost_heating',
+               'own_vehicle', 'emit_vehicle', 'fuel_vehicle',
                'fuel_price_vehicle', 'cost_vehicle', 'vehicle_num',
-               'vehicle_dist', 'vehicle_fuel', 'vehicle_use']
+               'vehicle_dist', 'vehicle_fuel', 'vehicle_use'
+               ]
     var_fuels = ['fuel1', 'fuel2', 'fuel3', 'fuel4', 'fuel5',
                  'fuel6', 'fuel7', 'fuel8', 'fuel9', 'fuel10']
+    var_family_structure = ['demographicType','IF_single_elderly','IF_singleAE',
+                            'IF_couple_elderly','IF_coupleA','IF_coupleWithChildren',
+                            'childrenNumber','elderNumber','IF_existElderly',
+                            'IF_existChildren',
+                            'IF_singleA',
+                            'IF_grandparentKids',
+                            'IF_bigFamily',
+                            'IF_singleWithChildren'
+                            ]
 
     """ Cache for the best option of clustering
     var_lasso = lasso_modelling(data, vars=var_demo+var_econ+var_app+var_live,
@@ -175,16 +188,28 @@ if __name__ == '__main__':
     'num_cooking', 'house_area', 'freq_water_heater', 'label_water_heater', 'freq_ac', 'size', 'vehicle_fuel', 
     'log_expenditure', 'log_raw_income', 'num_ac', 'type_heating']
     """
+    # Generate Y label name for lasso
+    columns_name = list(data.columns.values)
+    VAR_LABELS = dict()
+    for i in range(0, (len(columns_name))):
+        VAR_LABELS[columns_name[i]] = columns_name[i]
 
     # feature engineering
-    var_lasso = lasso_modelling(data, vars=var_demo+var_econ+var_app+var_live,
+    var_lasso = lasso_modelling(data, vars=var_demo+var_app+var_live+var_family_structure,
                                 dep_var='log_en_total', min_weight=0.01, max_iteration=10000)
 
     # clustering test
     vars = var_lasso['vars'].values.tolist()
-    clustering_modelling(data, vars=vars)
-    # urban/rural
-    urban = data[data.resident == 1]
-    rural = data[data.resident == 0]
-    clustering_modelling(urban, vars=vars)
-    clustering_modelling(rural, vars=vars)
+    output_data = clustering_modelling(data, vars=vars)
+    output_path = Path('output_data') / 'cluster_output-1104.csv'
+    output_data.to_csv(output_path, sep=',', index=True, header=True)
+    # # urban/rural
+    # urban = data[data.resident == 1]
+    # rural = data[data.resident == 0]
+    # clustering_modelling(urban, vars=vars)
+    # clustering_modelling(rural, vars=vars)
+
+    view = output_data[vars+['cluster']].groupby('cluster').mean()
+    output_data = view
+    output_path = Path('output_data') / 'classification_metrics-1104.csv'
+    output_data.to_csv(output_path, sep=',', index=True, header=True)
