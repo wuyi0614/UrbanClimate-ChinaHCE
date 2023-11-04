@@ -54,18 +54,19 @@ def get_energy(data: pd.DataFrame) -> pd.DataFrame:
     data['type'] = data['type'].apply(lambda x: f'en_{x}')
     merged = data[['id', 'type', 'use']].groupby(['id', 'type']).sum().reset_index()
     pivot = merged.pivot(index='id', columns='type', values='use').fillna(0)
-    pivot['en_total'] = pivot.iloc[:, 1:].sum(axis=1)  # sum by rows
+    pivot['en_total'] = pivot.sum(axis=1)  # sum by rows
     sub = ['en_ac', 'en_computer', 'en_cooking', 'en_freezing', 'en_heating',
            'en_laundry', 'en_lighting', 'en_television', 'en_waterheating']
     pivot['en_total_no_vehicle'] = pivot[sub].sum(axis=1)
     return pivot
 
 
-def city_lifestyle_chart(energy: pd.DataFrame) -> pd.DataFrame:
+def city_component_chart(energy: pd.DataFrame, cities: np.ndarray) -> pd.DataFrame:
     """
     This function illustrates the components of energy consumption from each category
 
     :param energy: the energy dataframe
+    :param cities: sorted city index
     :return: the used dataframe
     """
     # the chart has a shared Y-axis and two X-axis and the left X-axis will be the count of appliances
@@ -88,11 +89,18 @@ def city_lifestyle_chart(energy: pd.DataFrame) -> pd.DataFrame:
     use = use.merge(prefs, on='id', how='left')
     use = use.groupby('prefecture_eng').mean().reset_index()
 
+    # recast the city indexs
+    prefectures = use['prefecture_eng'].values.tolist()
+    idx = [prefectures.index(i) for i in cities]
+
     # reshape the above data by cities (must do it in two steps because count/sum on the city level does not reflect
     # the average level of ownership or energy consumption
     apps = ['appliance', 'cooking', 'heating', 'vehicle', 'waterheating']
     app_names = ['Appliance', 'Cooking', 'Heater', 'Vehicle', 'Water heater']
-    cities = use['prefecture_eng'].values
+
+    # reorder the dataframe
+    use = use.loc[idx, :]
+    count = count.loc[idx, :]
 
     # create the canvas
     fig, ax1 = plt.subplots(figsize=(12, 16))
@@ -118,6 +126,7 @@ def city_lifestyle_chart(energy: pd.DataFrame) -> pd.DataFrame:
     # adjust x-axis range
     plt.margins(0.01)
     ax1.set_yticks(x_range, cities, size=12)
+    ax1.set_yticklabels(cities, verticalalignment='center', horizontalalignment='center')
     ax1.set_xticks(range(-15, 26, 5), [abs(i) for i in range(-15, 26, 5)], size=14)
     ax1.tick_params(left=False)
     ax1.tick_params(bottom=False)
@@ -133,7 +142,7 @@ def city_lifestyle_chart(energy: pd.DataFrame) -> pd.DataFrame:
     ax2.spines['left'].set_visible(False)
 
     plt.tight_layout()
-    plt.legend(loc=7, fontsize=14)
+    plt.legend(loc=1, ncol=2, fontsize=14)
     fig.savefig('img/figure2.pdf', format='pdf', dpi=200)
     plt.show()
 
@@ -158,6 +167,8 @@ def city_energy_chart(data: pd.DataFrame) -> pd.DataFrame:
                  sort_values(['percap_all'], ascending=False).index.tolist() + \
              data.loc[data.region == 1, ['percap_all', 'prefecture_eng']].groupby('prefecture_eng').mean(). \
                  sort_values(['percap_all'], ascending=False).index.tolist()
+    cities.reverse()  # to cope with the order in the component chart
+
     # rebuild the chart dataset by the order of cities
     chart = pd.DataFrame()
     for c in cities:
@@ -171,25 +182,28 @@ def city_energy_chart(data: pd.DataFrame) -> pd.DataFrame:
 
     # pre-processing before making the chart
     # result one: percap energy use by urban/rural by cities
-    fig = plt.figure(figsize=(10, 16))
+    fig = plt.figure(figsize=(12, 16))
     ax = plt.gca()
 
     sns.boxplot(y='prefecture_eng', x='percap_all', hue='resident', gap=.1,
                 data=chart, linewidth=1.5, palette='Set2', fliersize=0)
     plt.xlim(0, 4500)  # the maximum value is <4500
     plt.xticks(size=12)
+    plt.tick_params(left=False)
+    plt.tick_params(bottom=False)
     ax.spines['right'].set_visible(False)
     ax.spines['top'].set_visible(False)
 
     plt.ylabel('Cities', fontsize=12)
     plt.xlabel('Energy consumption per capita (kgce/person)', fontsize=14)
-    plt.legend(loc=4, fontsize=12)
+    plt.legend(loc=1, ncol=2, fontsize=12)
 
     # adjust the margins
     plt.margins(0.01)
     plt.tight_layout()
     fig.savefig('img/figure1.pdf', format='pdf', dpi=200)
     plt.show()
+    return chart
 
 
 def create_regional_variable(series):
@@ -270,7 +284,9 @@ if __name__ == '__main__':
     foo = merged[['prefecture', 'en_total', 'size']].groupby('prefecture').sum()
 
     # energy consumption chart
-    city_energy_chart(merged)
+    index = city_energy_chart(merged)
+    cities = index['prefecture_eng'].values.tolist()
+    cities.reverse()
 
     # add a new chart to the result one section
     energy = pd.read_excel(energyfile, engine='openpyxl')
@@ -279,4 +295,4 @@ if __name__ == '__main__':
     # reduce 10 categories into 6 categories
     compress_keys = ['ac', 'computer', 'freezing', 'laundry', 'lighting', 'television']
     energy['type'] = energy['type'].apply(lambda x: 'appliance' if x in compress_keys else x)
-    city_lifestyle_chart(energy)
+    city_component_chart(energy, cities=cities)
