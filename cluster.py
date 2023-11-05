@@ -11,8 +11,21 @@ from sklearn.linear_model import Lasso
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score, davies_bouldin_score
 
+from sklearn.preprocessing import StandardScaler
 from sklearn.manifold import TSNE
-from gap_statistic import OptimalK
+
+
+def preprocessing(data: pd.DataFrame, vars: list = []):
+    """data preprocessing and standardization"""
+    zscore = StandardScaler()
+
+    scaled = data.copy(True)
+    for k in tqdm(vars):
+        var = scaled[k].fillna(0)
+        scored = zscore.fit_transform(var.values.reshape(len(scaled), 1))
+        scaled[k] = scored.reshape(len(scaled), )
+
+    return scaled
 
 
 def lasso_modelling(data: pd.DataFrame,
@@ -36,7 +49,7 @@ def lasso_modelling(data: pd.DataFrame,
                           param_grid={'alpha': alpha_range, 'max_iter': [max_iteration]},
                           cv=5,
                           scoring='neg_mean_absolute_error',
-                          n_jobs=2)
+                          n_jobs=1)
     result.fit(x, y)
     print('MAE: %.5f' % result.best_score_)
     print('Optimal param：\n', result.best_params_)
@@ -77,6 +90,7 @@ def clustering_modelling(data: pd.DataFrame,
                          index: str = 'id',
                          epoch: int = 10,
                          n_clusters: int = 1,
+                         metric: str = 'cosine',
                          display: bool = True):
     """Modelling process for clustering"""
     # reconcile with features
@@ -98,7 +112,7 @@ def clustering_modelling(data: pd.DataFrame,
             param["n_clusters"] = n
             km = KMeans(**param).fit(train)
             y_pred = km.predict(train)
-            eva += [[silhouette_score(train, y_pred), davies_bouldin_score(train, y_pred)]]
+            eva += [[silhouette_score(train, y_pred, metric=metric), davies_bouldin_score(train, y_pred)]]
 
         exp = pd.DataFrame(eva, columns=["silhouette_score", "calinski_harabasz_score"])
         print(exp)
@@ -191,6 +205,7 @@ if __name__ == '__main__':
 
     data['province_id'] = data['province'].apply(lambda x: list(data['province'].unique()).index(x))
     data['prefecture_id'] = data['prefecture'].apply(lambda x: list(data['prefecture'].unique()).index(x))
+
     # final list of variables
     var_geo = ['prefecture_id', 'region']
     var_demo = ['age', 'house_area', 'size', 'childrenNumber', 'elderNumber']
@@ -213,7 +228,7 @@ if __name__ == '__main__':
     var_percap = ['en_ac_percap', 'en_computer_percap', 'en_cooking_percap', 'en_freezing_percap',
                   'en_heating_percap', 'en_laundry_percap', 'en_lighting_percap', 'en_television_percap',
                   'en_vehicle_percap', 'en_waterheating_percap']
-
+    var_std = var_demo + var_econ + var_app
     """ Cache for the best option of clustering
     var_lasso = lasso_modelling(data, vars=var_demo+var_econ+var_app+var_live,
                                 dep_var='log_en_total', min_weight=0.01, max_iteration=10000)
@@ -224,38 +239,44 @@ if __name__ == '__main__':
     """
 
     # feature engineering
-    mask = (data.log_expenditure > 0) & (data.log_raw_income > 0)
-    var_lasso = lasso_modelling(data, vars=var_geo + var_demo + var_econ + var_app + var_live + var_family,
-                                dep_var='log_en_total_percap', min_weight=0.05, max_iteration=10000)
-
-    # clustering test
+    train = data.copy(True)
+    vars_all = var_geo + var_demo + var_econ + var_app + var_live + var_family
+    train = preprocessing(train, vars=var_std)
+    # feature engineering with LASSO
+    var_lasso = lasso_modelling(train, vars=vars_all,
+                                dep_var='log_en_total_percap', min_weight=0.02, max_iteration=10000)
     vars = var_lasso['vars'].values.tolist()
-    test = []
-    opt = OptimalK(n_jobs=-1, parallel_backend='joblib')
-    n = opt(data[vars], cluster_array=np.arange(1, 15))
 
-    opt.gap_df
-    opt.plot_results()
+    # Notably, the reason we do not use `Gap Statistics` for the optimal K selection is that it only works
+    # in 2-D cluster, and in our case, the biggest issue is the deviation between variables is too large, which
+    # results in very bad clustered results. If the data is preprocessed by T-SNE, and it is clustered with the same
+    # approach, we can at least obtain K=6.
 
-    cls = clustering_modelling(data, vars=vars, n_clusters=n)
+    # KMeans with standardised and log-transformed data
+    cls = clustering_modelling(train, vars=vars, n_clusters=1)  # n_cluseters=1 means it needs experiment
 
-    # visualisation
-    tsne = TSNE(n_components=2)
-    result = tsne.fit_transform(data[vars])
-    plot_embedding(result, cls['cluster'].values, 't-SNE')
+    # visualisation of clustered data points
+    # tsne = TSNE(n_components=2)
+    # result = tsne.fit_transform(train[var_energy])
+    # plot_embedding(result, cls['cluster'], 't-SNE')  # cls['cluster'].values
 
     # clustering validation
     valid_keys = ['en_cooking_percap', 'en_heating_percap',
                   'en_vehicle_percap', 'en_waterheating_percap']
-    vld = cluster_validator(cls, validate_keys=valid_keys)
+    data['cluster'] = cls['cluster']
+    vld = cluster_validator(data, validate_keys=valid_keys + ['live_days'])
+    print(vld)
+    data.to_excel('data/cluster-all-four-002-1105.xlsx', index=False)
 
     # urban/rural
-    opt = OptimalK(n_jobs=-1, parallel_backend='joblib')
-    urban = data[data.resident == 1]
-    n = opt(urban[vars], cluster_array=np.arange(1, 15))
-    clustering_modelling(urban, vars=vars, n_clusters=n)
+    urban = train[train.resident == 1]
+    urbandata = data[data.resident == 1]
+    cls_urban = clustering_modelling(urban, vars=vars, n_clusters=1)
+    urbandata['cluster'] = cls_urban['cluster']
+    urbandata.to_excel('data/cluster-urban-three-002-1105.xlsx', index=False)
 
-    opt = OptimalK(n_jobs=-1, parallel_backend='joblib')
-    rural = data[data.resident == 0]
-    n = opt(rural[vars], cluster_array=np.arange(1, 15))
-    clustering_modelling(rural, vars=vars, n_clusters=n)
+    rural = train[train.resident == 0]
+    ruraldata = data[data.resident == 0]
+    cls_rural = clustering_modelling(rural, vars=vars, n_clusters=1)
+    ruraldata['cluster'] = cls_rural['cluster']
+    ruraldata.to_excel('data/cluster-rural-three-002-1105.xlsx', index=False)

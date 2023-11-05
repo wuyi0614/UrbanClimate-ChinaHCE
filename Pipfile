@@ -12,7 +12,6 @@ seaborn = "*"
 
 # machine learning
 scikit-learn = "*"
-gap-stat = "*"
 
 # utils
 tqdm = "*"
