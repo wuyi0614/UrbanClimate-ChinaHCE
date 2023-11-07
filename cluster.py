@@ -12,7 +12,6 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score, davies_bouldin_score
 
 from sklearn.preprocessing import StandardScaler
-from sklearn.manifold import TSNE
 
 
 def preprocessing(data: pd.DataFrame, vars: list = []):
@@ -31,15 +30,11 @@ def preprocessing(data: pd.DataFrame, vars: list = []):
 def lasso_modelling(data: pd.DataFrame,
                     vars: list,
                     dep_var: str,
-                    min_weight=None,
                     alpha_range: list = None,
                     max_iteration=1000,
                     display=True):
     if alpha_range is None:
         alpha_range = np.linspace(0.001, 0.1, 1000)
-
-    if min_weight is None:
-        min_weight = 0.05
 
     x = data[vars].fillna(0).copy(True).values
     y = data[dep_var].copy(True).values
@@ -62,14 +57,12 @@ def lasso_modelling(data: pd.DataFrame,
     la_coef = la_coef.sort_values("coef", ascending=False)
     la_coef["colors"] = "#639DBC"
     la_coef.loc[la_coef.coef < 0, "colors"] = "#B6C438"
-    var_after_lasso = la_coef[la_coef.coef.abs() >= min_weight]
-    print(f"{len(var_after_lasso)} variables are filtered with weight={min_weight}")
 
     # output distribution of weights of variables
     if display:
         fig = plt.figure(figsize=(8, 10), dpi=120)
         x_range = range(len(la_coef))
-        plt.barh(x_range, la_coef.coef.values, color=la_coef.colors.values, label=f"Lasso alpha={min_weight}")
+        plt.barh(x_range, la_coef.coef.values, color=la_coef.colors.values, label=f"Lasso alpha={str(alpha)}")
 
         ticks = la_coef.vars.values
         plt.yticks(x_range, labels=ticks, size=9, rotation=0)
@@ -82,7 +75,7 @@ def lasso_modelling(data: pd.DataFrame,
         fig.savefig('img/lasso1.png', format='png', dpi=300)
         plt.show()
 
-    return var_after_lasso
+    return la_coef
 
 
 def clustering_modelling(data: pd.DataFrame,
@@ -152,7 +145,7 @@ def clustering_modelling(data: pd.DataFrame,
     print(f"Classified energy consumption: {counted}")
 
     # output
-    return data.copy(True)
+    return exp, data.copy(True)
 
 
 def cluster_validator(data: pd.DataFrame, validate_keys: list = [], save=False):
@@ -193,9 +186,12 @@ if __name__ == '__main__':
     from pathlib import Path
 
     datafile = Path('data') / 'mergedata-1104.xlsx'
-    data = pd.read_excel(datafile, engine='openpyxl')
-    # preprocessing
+    raw = pd.read_excel(datafile, engine='openpyxl')
+    # preprocessing and criteria filtering
+    data = raw[raw['en_total'] > 0]
+    print(f'Got {len(data)} and removed {len(raw) - len(data)} records!')
     data = data.fillna(0).replace(-99, 0)
+
     # convert province/city id
     data['log_en_total'] = np.log(data['en_total'].values + 1)
     data['log_en_total_percap'] = np.log(data['en_total'].values / data['size'].values + 1)
@@ -228,7 +224,7 @@ if __name__ == '__main__':
     var_percap = ['en_ac_percap', 'en_computer_percap', 'en_cooking_percap', 'en_freezing_percap',
                   'en_heating_percap', 'en_laundry_percap', 'en_lighting_percap', 'en_television_percap',
                   'en_vehicle_percap', 'en_waterheating_percap']
-    var_std = var_demo + var_econ + var_app
+    var_std = var_demo + var_econ + var_app + var_live
     """ Cache for the best option of clustering
     var_lasso = lasso_modelling(data, vars=var_demo+var_econ+var_app+var_live,
                                 dep_var='log_en_total', min_weight=0.01, max_iteration=10000)
@@ -237,46 +233,55 @@ if __name__ == '__main__':
     'num_cooking', 'house_area', 'freq_water_heater', 'label_water_heater', 'freq_ac', 'size', 'vehicle_fuel', 
     'log_expenditure', 'log_raw_income', 'num_ac', 'type_heating']
     """
-
-    # feature engineering
-    train = data.copy(True)
     vars_all = var_geo + var_demo + var_econ + var_app + var_live + var_family
+    # training dataset after preprocessing
+    train = data.copy(True)
     train = preprocessing(train, vars=var_std)
     # feature engineering with LASSO
-    var_lasso = lasso_modelling(train, vars=vars_all,
-                                dep_var='log_en_total_percap', min_weight=0.02, max_iteration=10000)
-    vars = var_lasso['vars'].values.tolist()
+    var_lasso = lasso_modelling(train, vars=vars_all, dep_var='log_en_total_percap', max_iteration=10000)
 
-    # Notably, the reason we do not use `Gap Statistics` for the optimal K selection is that it only works
-    # in 2-D cluster, and in our case, the biggest issue is the deviation between variables is too large, which
-    # results in very bad clustered results. If the data is preprocessed by T-SNE, and it is clustered with the same
-    # approach, we can at least obtain K=6.
+    silhouette = pd.DataFrame()  # find the optimal K
+    for i in range(7, 8):  # options for min_weight
+        mw = i / 100
+        vars = var_lasso.loc[var_lasso['coef'].abs() >= mw, 'vars'].values.tolist()
+        print(f'{len(vars)} variables were applied in clustering!')
 
-    # KMeans with standardised and log-transformed data
-    cls = clustering_modelling(train, vars=vars, n_clusters=1)  # n_cluseters=1 means it needs experiment
+        # Notably, the reason we do not use `Gap Statistics` for the optimal K selection is that it only works
+        # in 2-D cluster, and in our case, the biggest issue is the deviation between variables is too large, which
+        # results in very bad clustered results. If the data is preprocessed by T-SNE, and it is clustered with the same
+        # approach, we can at least obtain K=6.
 
-    # visualisation of clustered data points
-    # tsne = TSNE(n_components=2)
-    # result = tsne.fit_transform(train[var_energy])
-    # plot_embedding(result, cls['cluster'], 't-SNE')  # cls['cluster'].values
+        # visualisation of clustered data points
+        # tsne = TSNE(n_components=2)
+        # result = tsne.fit_transform(train[var_energy])
+        # plot_embedding(result, cls['cluster'], 't-SNE')  # cls['cluster'].values
 
-    # clustering validation
-    valid_keys = ['en_cooking_percap', 'en_heating_percap',
-                  'en_vehicle_percap', 'en_waterheating_percap']
-    data['cluster'] = cls['cluster']
-    vld = cluster_validator(data, validate_keys=valid_keys + ['live_days'])
-    print(vld)
-    data.to_excel('data/cluster-all-four-002-1105.xlsx', index=False)
+        # KMeans with standardised and log-transformed data
+        score, cls = clustering_modelling(train, vars=vars, n_clusters=1, display=False)  # n_cluseters=1 means it needs experiment
 
-    # urban/rural
-    urban = train[train.resident == 1]
-    urbandata = data[data.resident == 1]
-    cls_urban = clustering_modelling(urban, vars=vars, n_clusters=1)
-    urbandata['cluster'] = cls_urban['cluster']
-    urbandata.to_excel('data/cluster-urban-three-002-1105.xlsx', index=False)
+        # clustering validation
+        valid_keys = ['en_cooking_percap', 'en_heating_percap',
+                      'en_vehicle_percap', 'en_waterheating_percap']
+        data['cluster'] = cls['cluster']
+        vld = cluster_validator(data, validate_keys=valid_keys + ['size'])
+        print(vld)
 
-    rural = train[train.resident == 0]
-    ruraldata = data[data.resident == 0]
-    cls_rural = clustering_modelling(rural, vars=vars, n_clusters=1)
-    ruraldata['cluster'] = cls_rural['cluster']
-    ruraldata.to_excel('data/cluster-rural-three-002-1105.xlsx', index=False)
+        # urban/rural
+        urban = train[train.resident == 1]
+        score_urban, cls_urban = clustering_modelling(urban, vars=vars, n_clusters=1, display=False)
+        data['cluster_urban'] = np.nan
+        data.loc[urban.index, 'cluster_urban'] = cls_urban['cluster']
+
+        rural = train[train.resident == 0]
+        score_rural, cls_rural = clustering_modelling(rural, vars=vars, n_clusters=1, display=False)
+        data['cluster_rural'] = np.nan
+        data.loc[rural.index, 'cluster_rural'] = cls_rural['cluster']
+
+        # collect all the K and silhouette scores
+        silhouette[f'all-00{i}'] = score['silhouette_score'].tolist() + [score['silhouette_score'].argmax() + 2]
+        silhouette[f'urban-00{i}'] = score_urban['silhouette_score'].tolist() + [score_urban['silhouette_score'].argmax() + 2]
+        silhouette[f'rural-00{i}'] = score_rural['silhouette_score'].tolist() + [score_rural['silhouette_score'].argmax() + 2]
+        silhouette.T.to_excel('data/cluster-score-1105.xlsx')
+
+        # output the final dataset of clustering
+        data.to_excel(f'data/cluster-all-00{i}-1105.xlsx', index=False)

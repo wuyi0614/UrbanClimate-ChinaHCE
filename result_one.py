@@ -96,7 +96,7 @@ def city_component_chart(energy: pd.DataFrame, cities: np.ndarray) -> pd.DataFra
     # reshape the above data by cities (must do it in two steps because count/sum on the city level does not reflect
     # the average level of ownership or energy consumption
     apps = ['appliance', 'cooking', 'heating', 'vehicle', 'waterheating']
-    app_names = ['Appliance', 'Cooking', 'Heater', 'Vehicle', 'Water heater']
+    app_names = ['Appliance', 'Cooking', 'Space heating', 'Vehicle', 'Water heating']
 
     # reorder the dataframe
     use = use.loc[idx, :]
@@ -173,17 +173,21 @@ def city_energy_chart(data: pd.DataFrame) -> pd.DataFrame:
     chart = pd.DataFrame()
     for c in cities:
         chart = pd.concat([chart, data[data['prefecture_eng'] == c]], axis=0)
+
     # ... dataframe for boxplot
     chart['resident'] = chart['resident'].apply(lambda x: 'Urban' if x == 1 else 'Rural')
     # ... dataframe for lineplot
     linechart = data[['region', 'en_total', 'size']].groupby('region').sum().reset_index()
-    # north: 432.47804712, south: 255.65224578
-    regional = (linechart['en_total'] / linechart['size']).values
+    # north / south: 433.66, 257.83
+    regional = (linechart['en_total'] / linechart['size']).values.round(2)
 
     # pre-processing before making the chart
     # result one: percap energy use by urban/rural by cities
     fig = plt.figure(figsize=(12, 16))
     ax = plt.gca()
+    # draw two shades under the canvas
+    plt.fill_between([0, 4500], -1, 46.5, facecolor='yellow', alpha=0.1)
+    plt.fill_between([0, 4500], 46.5, 86, facecolor='lightblue', alpha=0.2)
 
     sns.boxplot(y='prefecture_eng', x='percap_all', hue='resident', gap=.1,
                 data=chart, linewidth=1.5, palette='Set2', fliersize=0)
@@ -194,8 +198,8 @@ def city_energy_chart(data: pd.DataFrame) -> pd.DataFrame:
     ax.spines['right'].set_visible(False)
     ax.spines['top'].set_visible(False)
 
-    plt.ylabel('Cities', fontsize=12)
-    plt.xlabel('Energy consumption per capita (kgce/person)', fontsize=14)
+    plt.ylabel('')
+    plt.xlabel('Per capita energy consumption (kgce)', fontsize=14)
     plt.legend(loc=1, ncol=2, fontsize=12)
 
     # adjust the margins
@@ -284,6 +288,9 @@ if __name__ == '__main__':
     foo = merged[['prefecture', 'en_total', 'size']].groupby('prefecture').sum()
 
     # energy consumption chart
+    if not 'merged' in locals():
+        merged = pd.read_excel('data/mergedata-1104.xlsx')
+
     index = city_energy_chart(merged)
     cities = index['prefecture_eng'].values.tolist()
     cities.reverse()
