@@ -7,8 +7,108 @@ import numpy as np
 
 from collections import Counter
 
+# 0. Color paletts
+WSJ = {
+    "lightred": "#D5695D",
+    "lightgreen": "#65A479",
+    "lightblue": "#5D8CA8",
+    "lightyellow": "#D3BA68",
+    "darkred": "#B1283A",
+    "darkblue": "#016392",
+    "darkyellow": "#BE9C2E",
+    "darkgreen": "#098154",
+    "gray": "#808080",
+    "purple": "#9370DB"
+}
 
-# 1. 数据变量的数值转换
+ACADEMIC = {
+    "lightblue": "#8ECFC9",
+    "lightorange": "#FFBE7A",
+    "lightred": "#FA7F6F",
+    "lightpurple": "#BEB8DC",
+    "shadow": "#E7DAD2",
+    "grey": "#999999"
+}
+
+# 0. Variable mapping
+VAR_MAPPING = {
+    "prefecture_id": "Prefecture",
+    "region": "Region(N/S)",
+    "age": "Mean age",
+    "house_area": "House area",
+    "size": "Family size",
+    "childrenNumber": "No. of Children",
+    "elderNumber": "No. of Elderly",
+    "log_expenditure": "Annual expenditure(log)",
+    "log_income_percap": "Per capita income(log)",
+    "log_raw_income": "Annual income(log)",
+    "num_cooking": "No. of cookers",
+    "power_cooking": "Mean power of cookers",
+    "freq_cooking": "Mean use frequency of cookers",
+    "time_cooking": "Mean use time of cookers",
+    "num_water_heater": "No. of water heaters",
+    "freq_water_heater": "Mean use frequency of \nwater heaters",
+    "time_water_heater": "Mean use time of \nwater heaters",
+    "label_water_heater": "Mean energy efficiency of water heaters",
+    "num_ac": "No. of air conditioners",
+    "freq_ac": "Mean use frequency of air conditioners",
+    "power_ac": "Mean power of air conditioners",
+    "time_ac": "Mean use time of air conditioners",
+    "label_ac": "Mean energy efficiency of air conditioners",
+    "type_heating": "Type of space heating",
+    "time_heating": "Mean use time of \nspace heating",
+    "area_heating": "Space heating area",
+    "cost_heating": "Annual cost of space heating",
+    "own_vehicle": "Vehicle ownership",
+    "emit_vehicle": "Vehicle displacement",
+    "fuel_vehicle": "Vehicle fuel type",
+    "fuel_price_vehicle": "Fuel price for vehicle",
+    "cost_vehicle": "Cost of vehicle",
+    "vehicle_num": "No. of vehicle",
+    "vehicle_dist": "Annual driving distance",
+    "vehicle_fuel": "Vehicle fuel type",
+    "vehicle_use": "Actual vehicle displacement",
+    "outside": "Stay out days",
+    "live_days": "Stay home days",
+    "IF_single_elderly": "Is single elderly family",
+    "IF_singleAE": "Is single adult with \nelderly family",
+    "IF_singleA": "Is single adult only family",
+    "IF_couple_elderly": "Is couple elderly family",
+    "IF_coupleA": "Is couple adults family",
+    "IF_singleWithChildren": "Is single family with children",
+    "IF_coupleWithChildren": "Is couple family with children",
+    "IF_grandparentKids": "Is family with grandparents and children",
+    "IF_bigFamily": "Is big family",
+    "IF_existElderly": "Is family with elderly"
+}
+
+# clustering mapping
+CLUSTER_MAPPING = {
+    "all": {
+        0: ["Low-income cooking-demand eldelry family", "LCDE"],
+        1: ["Southern temperature-demand family", "STD"],
+        2: ["Northern heating-demand family", "NHD"],
+        3: ["Higher income younger stayout family", "HYS"]
+    },
+    "urban": {
+        0: ["Low-income cooking-demand eldelry family", "LCDE"],
+        1: ["Southern temperature-demand family", "STD"],
+        2: ["Higher income younger stayout family", "HYS"],
+        3: ["Northern elderly family", "NE"],
+        4: ["Northern heating-demand family", "NHD"],
+        5: ["High-income car-owner family with children", "HCC"]
+    },
+    "rural": {
+        0: ["Low-income cooking-demand eldelry family", "LCDE"],
+        1: ["Higher income younger stayout family", "HYS"],
+        2: ["Southern temperature-demand family", "STD"],
+        3: ["Northern heating-demand family", "NHD"],
+        4: ["High-income car-owner family with children", "HCC"]
+    }
+}
+
+
+# 1. Numeric conversion
 # 以下为2014年CGSS数据表的变量转换（注意统一转换函数的写法，确保在运行的时候代码是一致的）
 # 另外要注意的是，数据表里，表头下一行是问题的说明，并非数据要避开
 
@@ -537,8 +637,8 @@ def converter_cooking(data: pd.DataFrame):
         da[f'{de}-freq'] = da[f'{de}d'].apply(_freq_process)
 
     # 尽量将不同的变量都整合到一起，比如计算平均功率，平均使用频率
-    cpower = da[[f'{de}-power' for de in devices]].apply(lambda x: x[x>0].mean(), axis=1).fillna(-99)
-    cfreq = da[[f'{de}-freq' for de in devices]].apply(lambda x: x[x>0].mean(), axis=1).fillna(-99)
+    cpower = da[[f'{de}-power' for de in devices]].apply(lambda x: x[x > 0].mean(), axis=1).fillna(-99)
+    cfreq = da[[f'{de}-freq' for de in devices]].apply(lambda x: x[x > 0].mean(), axis=1).fillna(-99)
     cnum['cook_power'] = cpower
     cnum['cook_freq'] = cfreq
     return cnum
@@ -677,10 +777,10 @@ def create_demographic_variable(age, rel_array):
     couple = lambda x: set(x) == {0, -99}  # 也是老年夫妻的条件之一
     couple_kid_one = lambda x: set(x) == {0, 3, -99} or (set(x) == {2, -99} and Counter(x)[2] > 1)
     couple_kid_two = lambda x: (set(x) == {0, 3, -99} and Counter(x)[3] > 1) or (
-                set(x) == {1, 2, -99} and Counter(x)[2] > 1)
+            set(x) == {1, 2, -99} and Counter(x)[2] > 1)
     single_kid_one = lambda x: set(x) == {3, -99} or (set(x) == {2, -99} and Counter(x)[2] == 1)
     single_kid_two = lambda x: (set(x) == {3, -99} and Counter(x)[3] > 1) or (
-                set(x) == {1, 2, -99} and Counter(x)[2] == 1)
+            set(x) == {1, 2, -99} and Counter(x)[2] == 1)
     grand_parent_kids = lambda x: set(x) == {4, -99} or set(x) == {5, -99} or set(x) == {0, 4, -99} or set(x) == {0, 5,
                                                                                                                   -99}
     big_family = lambda x: Counter(x)[-99] <= 10

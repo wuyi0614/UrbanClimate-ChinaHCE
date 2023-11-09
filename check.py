@@ -258,10 +258,9 @@ def television(row: dict) -> dict:
     :param row: a dict(row-like) data from dataframe
     :return: an updated dict
     """
+    time, power = CONFIG['time'], CONFIG['power']
     result = defaultdict(list)
     for i, idx in enumerate(range(26, 29)):
-        time, power = CONFIG['time'], CONFIG['power']
-
         # extract the parameters
         w = str(row[f'e2']).strip()  # days/week in house
         p = str(row[f'e{idx}e']).strip()  # power
@@ -282,7 +281,7 @@ def television(row: dict) -> dict:
         # save results
         result['id'] += [row['id']]
         result['type'] += ['television']
-        result['appliance'] += ['']
+        result['appliance'] += [f'TV{i}']
         result['power'] += [pp]
         result['efficiency'] += [e]
         result['frequency'] += ['everyday']
@@ -641,7 +640,7 @@ def ac(row: dict) -> dict:
         adj = 0.7 if '变频' in a else 1
         ee = eff.get(e, 0)
         tt = time.get(t, 0) / 60
-        rt = runtime.get(f, 0)
+        rt = runtime.get(f, 0) * 30  # raw unit: month
 
         # equation:
         # output power (kW) * adjust / efficiency * time (hour/day) * run time(days) * coal base
@@ -669,8 +668,7 @@ def vehicle(row: dict) -> dict:
         - e70, fuel type
         - e72, actual fuel use
 
-    Notes: 1. mixed fuel is assumed to be used in half-half
-           2.
+    Notes: mixed fuel is assumed to be used in half-half
 
     :param row: a dict(row-like) data from dataframe
     :return: an updated dict
@@ -828,4 +826,4 @@ if __name__ == '__main__':
 
     # overall test
     use = main(raw)
-    use.to_excel(Path('data') / 'energyuse-1024.xlsx', index=False)
+    use.to_excel(Path('data') / 'energyuse-1103.xlsx', index=False)
