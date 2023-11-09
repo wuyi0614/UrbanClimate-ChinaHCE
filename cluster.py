@@ -12,6 +12,7 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score, davies_bouldin_score
 
 from sklearn.preprocessing import StandardScaler
+from config import WSJ, VAR_MAPPING
 
 
 def preprocessing(data: pd.DataFrame, vars: list = []):
@@ -28,14 +29,16 @@ def preprocessing(data: pd.DataFrame, vars: list = []):
 
 
 def lasso_modelling(data: pd.DataFrame,
-                    vars: list,
+                    indep_var: dict,
                     dep_var: str,
                     alpha_range: list = None,
                     max_iteration=1000,
+                    min_weight: float = None,
                     display=True):
     if alpha_range is None:
         alpha_range = np.linspace(0.001, 0.1, 1000)
 
+    vars = list(indep_var.keys())
     x = data[vars].fillna(0).copy(True).values
     y = data[dep_var].copy(True).values
 
@@ -55,24 +58,35 @@ def lasso_modelling(data: pd.DataFrame,
     la_coef = pd.DataFrame(la.coef_, columns=["coef"])
     la_coef["vars"] = vars
     la_coef = la_coef.sort_values("coef", ascending=False)
-    la_coef["colors"] = "#639DBC"
-    la_coef.loc[la_coef.coef < 0, "colors"] = "#B6C438"
+    la_coef["colors"] = WSJ['lightred']
+    la_coef.loc[la_coef.coef < 0, "colors"] = WSJ['lightgreen']
+
+    if min_weight is None:
+        min_weight = 0.07
+
+    la_coef = la_coef[la_coef.coef.abs() >= min_weight]
+    coef = pd.concat([la_coef[la_coef.coef == 0], la_coef[la_coef.coef < 0].sort_values('coef')], axis=0)
+    coef = pd.concat([coef, la_coef[la_coef.coef > 0].sort_values('coef')], axis=0)
 
     # output distribution of weights of variables
     if display:
-        fig = plt.figure(figsize=(8, 10), dpi=120)
-        x_range = range(len(la_coef))
-        plt.barh(x_range, la_coef.coef.values, color=la_coef.colors.values, label=f"Lasso alpha={str(alpha)}")
+        fig = plt.figure(figsize=(6, 6))
+        x_range = range(len(coef))
+        plt.barh(x_range, coef.coef.values, color=coef.colors.values, alpha=0.65)
+        plt.vlines(0, -0.5, len(coef)-0.5, color='grey', linewidth=0.5)
 
-        ticks = la_coef.vars.values
-        plt.yticks(x_range, labels=ticks, size=9, rotation=0)
-        plt.ylabel("Household features")
-        plt.xlabel("Feature importance")
+        ticks = [indep_var[v] for v in coef.vars.values]
+        plt.yticks(x_range, labels=ticks, size=10, rotation=0, verticalalignment='center', horizontalalignment='right')
+        plt.ylabel("Feature importance", fontsize=12)
+        plt.xlabel("Household characteristics", fontsize=12)
 
+        ax = plt.gca()
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
         plt.margins(0.01)
         plt.tight_layout()
-        plt.grid(axis="x", color="grey", alpha=0.3)
-        fig.savefig('img/lasso1.png', format='png', dpi=300)
+        # plt.grid(axis="x", color="grey", alpha=0.3)
+        fig.savefig('img/lasso1.pdf', format='pdf', dpi=200)
         plt.show()
 
     return la_coef
@@ -238,7 +252,8 @@ if __name__ == '__main__':
     train = data.copy(True)
     train = preprocessing(train, vars=var_std)
     # feature engineering with LASSO
-    var_lasso = lasso_modelling(train, vars=vars_all, dep_var='log_en_total_percap', max_iteration=10000)
+    vars_all = {k: VAR_MAPPING[k] for k in vars_all}
+    var_lasso = lasso_modelling(train, indep_var=vars_all, dep_var='log_en_total_percap', max_iteration=10000)
 
     silhouette = pd.DataFrame()  # find the optimal K
     for i in range(7, 8):  # options for min_weight

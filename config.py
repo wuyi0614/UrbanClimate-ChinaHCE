@@ -21,6 +21,92 @@ WSJ = {
     "purple": "#9370DB"
 }
 
+ACADEMIC = {
+    "lightblue": "#8ECFC9",
+    "lightorange": "#FFBE7A",
+    "lightred": "#FA7F6F",
+    "lightpurple": "#BEB8DC",
+    "shadow": "#E7DAD2",
+    "grey": "#999999"
+}
+
+# 0. Variable mapping
+VAR_MAPPING = {
+    "prefecture_id": "Prefecture",
+    "region": "Region(N/S)",
+    "age": "Mean age",
+    "house_area": "House area",
+    "size": "Family size",
+    "childrenNumber": "No. of Children",
+    "elderNumber": "No. of Elderly",
+    "log_expenditure": "Annual expenditure(log)",
+    "log_income_percap": "Per capita income(log)",
+    "log_raw_income": "Annual income(log)",
+    "num_cooking": "No. of cookers",
+    "power_cooking": "Mean power of cookers",
+    "freq_cooking": "Mean use frequency of cookers",
+    "time_cooking": "Mean use time of cookers",
+    "num_water_heater": "No. of water heaters",
+    "freq_water_heater": "Mean use frequency of \nwater heaters",
+    "time_water_heater": "Mean use time of \nwater heaters",
+    "label_water_heater": "Mean energy efficiency of water heaters",
+    "num_ac": "No. of air conditioners",
+    "freq_ac": "Mean use frequency of air conditioners",
+    "power_ac": "Mean power of air conditioners",
+    "time_ac": "Mean use time of air conditioners",
+    "label_ac": "Mean energy efficiency of air conditioners",
+    "type_heating": "Type of space heating",
+    "time_heating": "Mean use time of \nspace heating",
+    "area_heating": "Space heating area",
+    "cost_heating": "Annual cost of space heating",
+    "own_vehicle": "Vehicle ownership",
+    "emit_vehicle": "Vehicle displacement",
+    "fuel_vehicle": "Vehicle fuel type",
+    "fuel_price_vehicle": "Fuel price for vehicle",
+    "cost_vehicle": "Cost of vehicle",
+    "vehicle_num": "No. of vehicle",
+    "vehicle_dist": "Annual driving distance",
+    "vehicle_fuel": "Vehicle fuel type",
+    "vehicle_use": "Actual vehicle displacement",
+    "outside": "Stay out days",
+    "live_days": "Stay home days",
+    "IF_single_elderly": "Is single elderly family",
+    "IF_singleAE": "Is single adult with \nelderly family",
+    "IF_singleA": "Is single adult only family",
+    "IF_couple_elderly": "Is couple elderly family",
+    "IF_coupleA": "Is couple adults family",
+    "IF_singleWithChildren": "Is single family with children",
+    "IF_coupleWithChildren": "Is couple family with children",
+    "IF_grandparentKids": "Is family with grandparents and children",
+    "IF_bigFamily": "Is big family",
+    "IF_existElderly": "Is family with elderly"
+}
+
+# clustering mapping
+CLUSTER_MAPPING = {
+    "all": {
+        0: ["Low-income cooking-demand eldelry family", "LCDE"],
+        1: ["Southern temperature-demand family", "STD"],
+        2: ["Northern heating-demand family", "NHD"],
+        3: ["Higher income younger stayout family", "HYS"]
+    },
+    "urban": {
+        0: ["Low-income cooking-demand eldelry family", "LCDE"],
+        1: ["Southern temperature-demand family", "STD"],
+        2: ["Higher income younger stayout family", "HYS"],
+        3: ["Northern elderly family", "NE"],
+        4: ["Northern heating-demand family", "NHD"],
+        5: ["High-income car-owner family with children", "HCC"]
+    },
+    "rural": {
+        0: ["Low-income cooking-demand eldelry family", "LCDE"],
+        1: ["Higher income younger stayout family", "HYS"],
+        2: ["Southern temperature-demand family", "STD"],
+        3: ["Northern heating-demand family", "NHD"],
+        4: ["High-income car-owner family with children", "HCC"]
+    }
+}
+
 
 # 1. Numeric conversion
 # 以下为2014年CGSS数据表的变量转换（注意统一转换函数的写法，确保在运行的时候代码是一致的）

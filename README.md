@@ -15,20 +15,25 @@ Notably, as accounting the carbon emission based on the survey is rather difficu
   - [ ] What approaches have been applied to explore HCEs and what findings regarding urban/rural HCEs
   - [ ] What gap exists in the current researches? -- highly dependent on a fixed range of factors, and lack of deep understanding of lifestyle and behaviors of Households
 - [ ] Methodology and data description (& a graphic methodology)
-  - [ ] Survey samples and city-level data - YW & ZYX
-  - [ ] Energy consumption and emission data processing and inequality indicators - YW
+  - [x] Survey samples - YW & ZYX
+  - [x] Energy consumption and emission data processing and inequality analysis - YW
   - [ ] Machine learning approaches - ZYX
 - [ ] Results
-  - [ ] City-level energy consumption and emissions - YW
-    - [ ] city-level (ownership(heatmap)/frequency/category-based difference)
-    - [x] city-level percap energy consumption
-  - [ ] HEC inequality by types and by regions - YW & ZYX
-    - [ ] General inequality by types (essential/additional or electrified/fossil)
-    - [ ] Regional inequality and their components
+  - [x] City-level energy consumption and emissions - YW
+    - [x] city-level energy consumption
+    - [x] city-level appliance ownership
+  - [x] HEC inequality by types and by regions - YW & ZYX
+    - [x] General inequality by types (essential/additional or electrified/fossil)
+    - [x] Regional inequality and their components
   - [ ] A machine learning-based HCE typology - ZYX
     - [ ] Typology analysis - LASSO + factor identification
     - [ ] Urban/rural typology analysis - clustering (attributes analysis)
 - [ ] Discussion
-  - [ ] *pending*
+  - [x] Conclusion
+  - [ ] Policy implication
+  - [x] Limitation
+- [ ] Appendix
+  - [ ] S1: Household energy consumption estimation
+  - [ ] S2: Machine learning approach
 
 ## Quick start and test
