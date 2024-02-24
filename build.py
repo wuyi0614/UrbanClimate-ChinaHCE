@@ -130,7 +130,7 @@ if __name__ == '__main__':
     # 交通工具
     final['own_vehicle'] = converter_e64(raw.loc[:, 'e64'])
     final['emit_vehicle'] = converter_e67e72e73(raw.loc[:, 'e67'])
-    final['fuel_vehicle'] = converter_e67e72e73(raw.loc[:, 'e72'])
-    final['fuel_price_vehicle'] = converter_e67e72e73(raw.loc[:, 'e73'])
+    final['fuel_vehicle'] = converter_e67e72e73(raw.loc[:, 'e72'])        # 2014实际百公里油耗
+    final['fuel_price_vehicle'] = converter_e67e72e73(raw.loc[:, 'e73'])  # 2014平均燃料价格
     final['cost_vehicle'] = converter_e50_2e74_1(raw.loc[:, 'e74_1'])
     final.to_excel(Path('data') / 'vardata-1030.xlsx', index=False)

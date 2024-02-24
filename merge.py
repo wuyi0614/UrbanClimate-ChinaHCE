@@ -71,9 +71,3 @@ if __name__ == '__main__':
 
     merged = merging(calculate, var)
 
-    # load the latest variable data
-    var_datafile = Path('data') / 'vardata-0207.xlsx'
-    var = pd.read_excel(var_datafile, engine='openpyxl')
-    # remove all the emission columns
-    drops = [it for it in var.columns if 'emi' in it]
-    var = var.drop(columns=drops)

@@ -82,28 +82,28 @@ VAR_MAPPING = {
     "IF_existElderly": "Is family with elderly"
 }
 
-# clustering mapping
+# clustering mapping›
 CLUSTER_MAPPING = {
     "all": {
-        0: ["Low-income cooking-demand eldelry family", "LCDE"],
-        1: ["Southern temperature-demand family", "STD"],
-        2: ["Northern heating-demand family", "NHD"],
-        3: ["Higher income younger stayout family", "HYS"]
+        0: ["Northern heating-demand family", "NHD"],
+        1: ["Low-income cooking-demand eldelry family", "LCDE"],
+        2: ["Higher income younger stayout family", "HYS"],
+        3: ["Southern temperature-demand family", "STD"]
     },
     "urban": {
         0: ["Low-income cooking-demand eldelry family", "LCDE"],
         1: ["Southern temperature-demand family", "STD"],
-        2: ["Higher income younger stayout family", "HYS"],
-        3: ["Northern elderly family", "NE"],
-        4: ["Northern heating-demand family", "NHD"],
-        5: ["High-income car-owner family with children", "HCC"]
+        2: ["High-income car-owner family with children", "HCC"],
+        3: ["Northern heating-demand family", "NHD"],
+        4: ["Higher income younger stayout family", "HYS"],
+        5: ["Northern elderly family", "NE"]
     },
     "rural": {
-        0: ["Low-income cooking-demand eldelry family", "LCDE"],
-        1: ["Higher income younger stayout family", "HYS"],
-        2: ["Southern temperature-demand family", "STD"],
-        3: ["Northern heating-demand family", "NHD"],
-        4: ["High-income car-owner family with children", "HCC"]
+        0: ["Southern temperature-demand family", "STD"],
+        1: ["Low-income cooking-demand eldelry family", "LCDE"],
+        2: ["High-income car-owner family with children", "HCC"],
+        3: ["Higher income younger stayout family", "HYS"],
+        4: ["Northern heating-demand family", "NHD"]
     }
 }
 

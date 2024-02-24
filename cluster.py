@@ -61,10 +61,11 @@ def lasso_modelling(data: pd.DataFrame,
     la_coef["colors"] = WSJ['lightred']
     la_coef.loc[la_coef.coef < 0, "colors"] = WSJ['lightgreen']
 
-    if min_weight is None:
-        min_weight = 0.07
+    # if min_weight is None:
+    #     min_weight = 0.07
+    #
+    # la_coef = la_coef[la_coef.coef.abs() >= min_weight]
 
-    la_coef = la_coef[la_coef.coef.abs() >= min_weight]
     coef = pd.concat([la_coef[la_coef.coef == 0], la_coef[la_coef.coef < 0].sort_values('coef')], axis=0)
     coef = pd.concat([coef, la_coef[la_coef.coef > 0].sort_values('coef')], axis=0)
 
@@ -199,7 +200,10 @@ if __name__ == '__main__':
     # load data and tests
     from pathlib import Path
 
-    datafile = Path('data') / 'mergedata-1104.xlsx'
+    path = Path('data') / 'clustered-0223'
+    path.mkdir(exist_ok=True)
+
+    datafile = Path('data') / 'mergedata-1114.xlsx'
     raw = pd.read_excel(datafile, engine='openpyxl')
     # preprocessing and criteria filtering
     data = raw[raw['en_total'] > 0]
@@ -223,31 +227,54 @@ if __name__ == '__main__':
     var_live = ['outside', 'live_days']
     var_family = ['IF_single_elderly', 'IF_singleAE', 'IF_singleA',
                   'IF_couple_elderly', 'IF_coupleA', 'IF_singleWithChildren',
-                  'IF_coupleWithChildren', 'IF_grandparentKids', 'IF_bigFamily', 'IF_existElderly']
+                  'IF_coupleWithChildren', 'IF_grandparentKids', 'IF_bigFamily']  # IF_existElderly is moved.
+
+    # TODO: duplicated driving variables could dramatically change the results
+    #       vehicle_fuel = vehicle fuel type (93/97 gasoline); vehicle_use = fuel_vehicle
     var_app = ['num_cooking', 'power_cooking', 'freq_cooking', 'time_cooking',
-               'num_water_heater', 'freq_water_heater', 'time_water_heater',
-               'label_water_heater', 'num_ac', 'freq_ac', 'power_ac', 'time_ac',
-               'label_ac', 'type_heating', 'time_heating', 'area_heating',
-               'cost_heating', 'own_vehicle', 'emit_vehicle', 'fuel_vehicle',
-               'fuel_price_vehicle', 'cost_vehicle', 'vehicle_num',
-               'vehicle_dist', 'vehicle_fuel', 'vehicle_use']
-    var_fuels = ['fuel1', 'fuel2', 'fuel3', 'fuel4', 'fuel5',
-                 'fuel6', 'fuel7', 'fuel8', 'fuel9', 'fuel10']
+               'num_water_heater', 'freq_water_heater', 'time_water_heater', 'label_water_heater',
+               'num_ac', 'freq_ac', 'power_ac', 'time_ac', 'label_ac',
+               'type_heating', 'time_heating', 'area_heating', 'cost_heating']
+    # TODO: changed on 2024-02-23. var_mob is separated from var_app because only a few people owning cars,
+    #       std may change the pattern.
+    var_mob = ['own_vehicle', 'emit_vehicle', 'fuel_price_vehicle', 'cost_vehicle',
+               'vehicle_dist', 'vehicle_use', 'vehicle_fuel']
     var_energy = ['en_ac', 'en_computer', 'en_cooking', 'en_freezing', 'en_heating',
                   'en_laundry', 'en_lighting', 'en_television', 'en_vehicle', 'en_waterheating']
-    var_percap = ['en_ac_percap', 'en_computer_percap', 'en_cooking_percap', 'en_freezing_percap',
-                  'en_heating_percap', 'en_laundry_percap', 'en_lighting_percap', 'en_television_percap',
-                  'en_vehicle_percap', 'en_waterheating_percap']
-    var_std = var_demo + var_econ + var_app + var_live
+
+    # NB. the following are variables shouldn't come into clustering
+    # var_percap = ['en_ac_percap', 'en_computer_percap', 'en_cooking_percap', 'en_freezing_percap',
+    #               'en_heating_percap', 'en_laundry_percap', 'en_lighting_percap', 'en_television_percap',
+    #               'en_vehicle_percap', 'en_waterheating_percap']
+
+    # Changelog: before 2024-02-23, var_std = var_demo + var_econ + var_app + var_live + var_mob
+    var_std = var_demo + var_econ + var_app + var_live + ['vehicle_dist', 'cost_vehicle']
+
     """ Cache for the best option of clustering
     var_lasso = lasso_modelling(data, vars=var_demo+var_econ+var_app+var_live,
                                 dep_var='log_en_total', min_weight=0.01, max_iteration=10000)
-
-    vars = ['live_days', 'num_water_heater', 'vehicle_dist', 'freq_cooking', 'time_heating', 'region', 'vehicle_use', 
-    'num_cooking', 'house_area', 'freq_water_heater', 'label_water_heater', 'freq_ac', 'size', 'vehicle_fuel', 
-    'log_expenditure', 'log_raw_income', 'num_ac', 'type_heating']
+    vars = ['live_days',
+        'num_water_heater',
+        'vehicle_dist',
+        'freq_cooking',
+        'time_heating',
+        'region',
+        'vehicle_use',
+        'num_cooking',
+        'house_area',
+        'freq_water_heater',
+        'label_water_heater',
+        'freq_ac',
+        'size',
+        'vehicle_fuel',
+        'log_expenditure',
+        'log_raw_income',
+        'num_ac',
+        'type_heating']
     """
-    vars_all = var_geo + var_demo + var_econ + var_app + var_live + var_family
+    # Changelog: before 2024-02-23, vars_all = var_geo + var_demo + var_econ + var_app + var_mob + var_live + var_family
+    vars_all = var_geo + var_demo + var_econ + var_app + var_mob + var_live + var_family
+
     # training dataset after preprocessing
     train = data.copy(True)
     train = preprocessing(train, vars=var_std)
@@ -256,8 +283,8 @@ if __name__ == '__main__':
     var_lasso = lasso_modelling(train, indep_var=vars_all, dep_var='log_en_total_percap', max_iteration=10000)
 
     silhouette = pd.DataFrame()  # find the optimal K
-    for i in range(7, 8):  # options for min_weight
-        mw = i / 100
+    for i in range(1, 30, 5):  # options for min_weight
+        mw = i / 100  # min_weight, the threshold for the optimal set of variables through LASSO
         vars = var_lasso.loc[var_lasso['coef'].abs() >= mw, 'vars'].values.tolist()
         print(f'{len(vars)} variables were applied in clustering!')
 
@@ -296,7 +323,9 @@ if __name__ == '__main__':
         silhouette[f'all-00{i}'] = score['silhouette_score'].tolist() + [score['silhouette_score'].argmax() + 2]
         silhouette[f'urban-00{i}'] = score_urban['silhouette_score'].tolist() + [score_urban['silhouette_score'].argmax() + 2]
         silhouette[f'rural-00{i}'] = score_rural['silhouette_score'].tolist() + [score_rural['silhouette_score'].argmax() + 2]
-        silhouette.T.to_excel('data/cluster-score-1105.xlsx')
 
         # output the final dataset of clustering
-        data.to_excel(f'data/cluster-all-00{i}-1105.xlsx', index=False)
+        data.to_excel(path / f'cluster-all-00{i}.xlsx', index=False)
+
+    # output
+    silhouette.T.to_excel(path / 'cluster-score.xlsx')

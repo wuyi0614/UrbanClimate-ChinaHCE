@@ -10,6 +10,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
+from pathlib import Path
 from config import WSJ, CLUSTER_MAPPING
 
 
@@ -32,13 +33,14 @@ def lorenz(arr):
     return np.insert(scaled_prefix_sum, 0, 0)
 
 
-def inequality(*arrays, labels: list, name: str):
+def inequality(*arrays, labels: list, name: str, save: Path):
     """
     Plot the inequality result using Lorenz curves
 
     :param arrays: a set of arrays for calculation
     :param labels: labels shown in the legend
     :param name: save figure by the name
+    :param save: saving path, change it every time re-run the script
     """
     fig = plt.figure(figsize=(6, 6))
     plt.plot([0, 1], [0, 1], linewidth=1.5, color='#999999')
@@ -60,12 +62,14 @@ def inequality(*arrays, labels: list, name: str):
     plt.tight_layout()
     plt.margins(0.0)
     plt.legend(loc=0, fontsize=10)
-    fig.savefig(f'img/inequality-{name}.pdf', format='pdf', dpi=200)
+    fig.savefig(save / f'inequality-{name}.pdf', format='pdf', dpi=200)
     plt.show()
 
 
 if __name__ == '__main__':
-    from pathlib import Path
+    # configure saving path
+    path = Path('data') / 'img-0223'
+    path.mkdir(exist_ok=True)
 
     # load data
     datafile = Path('data') / 'mergedata-1104.xlsx'
@@ -79,7 +83,7 @@ if __name__ == '__main__':
                data.loc[data.resident == 0, 'en_total'].values,
                data.loc[data.region == 1, 'en_total'].values,
                data.loc[data.region == 0, 'en_total'].values,
-               labels=['Urban', 'Rural', 'South', 'North'], name='region')
+               labels=['Urban', 'Rural', 'South', 'North'], name='region', save=path)
 
     # compute GINI coefs for components
     compress = ['en_ac', 'en_computer', 'en_freezing', 'en_laundry', 'en_lighting', 'en_television']
@@ -87,16 +91,16 @@ if __name__ == '__main__':
     labels = ['Appliance', 'Cooking', 'Space heating', 'Vehicle', 'Water heating']
     data['en_appliance'] = data[compress].sum(axis=1)  # compress 6 types into 1 type
     array = [data[k].values for k in components]
-    inequality(*array, labels=labels, name='component')
+    inequality(*array, labels=labels, name='component', save=path)
 
     # GINI coefs after clustering
-    clusterfile = Path('data') / 'cluster-all-007-1105.xlsx'
+    clusterfile = Path('data') / 'clustered-0223' / 'cluster-all-0026.xlsx'
     cluster = pd.read_excel(clusterfile)
     cluster['en_appliance'] = cluster[compress].sum(axis=1)  # compress 6 types into 1 type
     # all GINI
     array = [g['en_total'].values for _, g in cluster.groupby('cluster')]
     labels = [CLUSTER_MAPPING['all'][l][1] for l, _ in cluster.groupby('cluster')]
-    inequality(*array, labels=labels, name='cluster')
+    inequality(*array, labels=labels, name='cluster', save=path)
     # urban GINI
     group = cluster[~cluster.cluster_urban.isna()].groupby('cluster_urban')
     array, labels = [], []
@@ -117,4 +121,9 @@ if __name__ == '__main__':
 
     inequality(*array, labels=labels, name='rural')
 
+    for a, l in zip(array, labels):
+        print(f'{l}: {len(a)}')
+        plt.plot(a, label=l)
 
+    plt.legend()
+    plt.show()

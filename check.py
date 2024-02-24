@@ -231,7 +231,7 @@ def laundry(row: dict) -> dict:
         else:
             # size * electricity use per circle per kg * ee * frequency
             # 0.3 kWh/kg*circle (circle = use time / 45 (average use time))
-            r = s * tt * 60 / 45 * ee * ff
+            r = s * tt * 60 / 45 * ee * ff * coal_base
 
         # save results
         result['id'] += [row['id']]
