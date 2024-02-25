@@ -220,6 +220,14 @@ if __name__ == '__main__':
     data['province_id'] = data['province'].apply(lambda x: list(data['province'].unique()).index(x))
     data['prefecture_id'] = data['prefecture'].apply(lambda x: list(data['prefecture'].unique()).index(x))
 
+    # TODO: variables for standardization
+    # Changelog: before 2024-02-23, var_std = var_demo + var_econ + var_app + var_live + var_mob
+    var_std = ['house_area', 'size', 'log_expenditure', 'log_income_percap', 'log_raw_income',
+               'power_cooking', 'freq_cooking', 'time_cooking',
+               'freq_water_heater', 'time_water_heater', 'label_water_heater',
+               'freq_ac', 'power_ac', 'time_ac',
+               'type_heating', 'time_heating', 'area_heating', 'cost_heating']
+
     # final list of variables
     var_geo = ['prefecture_id', 'region']
     var_demo = ['age', 'house_area', 'size', 'childrenNumber', 'elderNumber']
@@ -237,8 +245,9 @@ if __name__ == '__main__':
                'type_heating', 'time_heating', 'area_heating', 'cost_heating']
     # TODO: changed on 2024-02-23. var_mob is separated from var_app because only a few people owning cars,
     #       std may change the pattern.
-    var_mob = ['own_vehicle', 'emit_vehicle', 'fuel_price_vehicle', 'cost_vehicle',
-               'vehicle_dist', 'vehicle_use', 'vehicle_fuel']
+    # var_mob = ['own_vehicle', 'emit_vehicle', 'fuel_price_vehicle', 'cost_vehicle',
+    #            'vehicle_dist', 'vehicle_use', 'vehicle_fuel']
+    var_mob = ['vehicle_dist', 'vehicle_fuel']  # NB. updated on 2024-02-25.
     var_energy = ['en_ac', 'en_computer', 'en_cooking', 'en_freezing', 'en_heating',
                   'en_laundry', 'en_lighting', 'en_television', 'en_vehicle', 'en_waterheating']
 
@@ -246,9 +255,6 @@ if __name__ == '__main__':
     # var_percap = ['en_ac_percap', 'en_computer_percap', 'en_cooking_percap', 'en_freezing_percap',
     #               'en_heating_percap', 'en_laundry_percap', 'en_lighting_percap', 'en_television_percap',
     #               'en_vehicle_percap', 'en_waterheating_percap']
-
-    # Changelog: before 2024-02-23, var_std = var_demo + var_econ + var_app + var_live + var_mob
-    var_std = var_demo + var_econ + var_app + var_live + ['vehicle_dist', 'cost_vehicle']
 
     """ Cache for the best option of clustering
     var_lasso = lasso_modelling(data, vars=var_demo+var_econ+var_app+var_live,
@@ -280,10 +286,11 @@ if __name__ == '__main__':
     train = preprocessing(train, vars=var_std)
     # feature engineering with LASSO
     vars_all = {k: VAR_MAPPING[k] for k in vars_all}
-    var_lasso = lasso_modelling(train, indep_var=vars_all, dep_var='log_en_total_percap', max_iteration=10000)
+    var_lasso = lasso_modelling(train, indep_var=vars_all, dep_var='log_en_total_percap', max_iteration=1000)
+    print(var_lasso)
 
     silhouette = pd.DataFrame()  # find the optimal K
-    for i in range(1, 30, 5):  # options for min_weight
+    for i in range(1, 40, 4):  # options for min_weight
         mw = i / 100  # min_weight, the threshold for the optimal set of variables through LASSO
         vars = var_lasso.loc[var_lasso['coef'].abs() >= mw, 'vars'].values.tolist()
         print(f'{len(vars)} variables were applied in clustering!')
@@ -320,12 +327,30 @@ if __name__ == '__main__':
         data.loc[rural.index, 'cluster_rural'] = cls_rural['cluster']
 
         # collect all the K and silhouette scores
-        silhouette[f'all-00{i}'] = score['silhouette_score'].tolist() + [score['silhouette_score'].argmax() + 2]
-        silhouette[f'urban-00{i}'] = score_urban['silhouette_score'].tolist() + [score_urban['silhouette_score'].argmax() + 2]
-        silhouette[f'rural-00{i}'] = score_rural['silhouette_score'].tolist() + [score_rural['silhouette_score'].argmax() + 2]
+        # NB. changed on 2024-02-25, `[score_urban['silhouette_score'].argmax() + 2]` was applied.
+        silhouette[f'all-00{i}'] = score['silhouette_score'].tolist() + [score['silhouette_score'].mean()]
+        silhouette[f'urban-00{i}'] = score_urban['silhouette_score'].tolist() + [score_urban['silhouette_score'].mean()]
+        silhouette[f'rural-00{i}'] = score_rural['silhouette_score'].tolist() + [score_rural['silhouette_score'].mean()]
 
         # output the final dataset of clustering
         data.to_excel(path / f'cluster-all-00{i}.xlsx', index=False)
 
-    # output
-    silhouette.T.to_excel(path / 'cluster-score.xlsx')
+    # reset columns by MultiIndex and remove the last row
+    idx = [(k, np.argmax(silhouette[k].values) + 2) for k in silhouette.columns]
+    silhouette.columns = pd.MultiIndex.from_tuples(idx)
+
+    # output with highlight: option 1, all/urban/rural with different colors
+    # for i, (k, _) in enumerate(silhouette.columns):
+    #     if k.startswith('all'):
+    #         c = 'Greens'
+    #     elif k.startswith('urban'):
+    #         c = 'Blues'
+    #     else:
+    #         c = 'Reds'
+    #
+    #     if i == 0:
+    #         stl = silhouette.style.background_gradient(cmap=c, subset=k, axis=None)
+    #     else:
+    #         stl = stl.background_gradient(cmap=c, subset=k, axis=None)
+    stl = silhouette.style.background_gradient(cmap='YlOrRd', axis=None)
+    stl.to_excel(path / 'cluster-score.xlsx')
