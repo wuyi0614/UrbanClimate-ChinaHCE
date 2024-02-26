@@ -203,8 +203,18 @@ if __name__ == '__main__':
     path = Path('data') / 'clustered-0223'
     path.mkdir(exist_ok=True)
 
-    datafile = Path('data') / 'mergedata-1114.xlsx'
+    datafile = Path('data') / 'mergedata-0225.xlsx'
     raw = pd.read_excel(datafile, engine='openpyxl')
+
+    # TODO: 临时代码删除
+    datafile = Path('data') / 'mergedata-1114.xlsx'
+    org = pd.read_excel(datafile, engine='openpyxl')
+    raw = raw.merge(org[['id', 'region', 'IF_single_elderly', 'IF_singleAE', 'IF_singleA',
+                         'IF_couple_elderly', 'IF_coupleA', 'IF_singleWithChildren',
+                         'IF_coupleWithChildren', 'IF_grandparentKids', 'IF_bigFamily',
+                         'en_cooking_percap', 'en_heating_percap', 'en_vehicle_percap', 'en_waterheating_percap']],
+                    on='id', how='left')
+
     # preprocessing and criteria filtering
     data = raw[raw['en_total'] > 0]
     print(f'Got {len(data)} and removed {len(raw) - len(data)} records!')
@@ -213,25 +223,29 @@ if __name__ == '__main__':
     # convert province/city id
     data['log_en_total'] = np.log(data['en_total'].values + 1)
     data['log_en_total_percap'] = np.log(data['en_total'].values / data['size'].values + 1)
+
     data['log_expenditure'] = np.log(data['expenditure'].values + 1)
     data['log_raw_income'] = np.log(data['raw_income'].values + 1)
     data['log_income_percap'] = np.log(data['income_percap'].values + 1)
+
+    data['log_power_cooking'] = np.log(data['power_cooking'].values + 1)
+    data['log_power_ac'] = np.log(data['power_ac'].values + 1)
 
     data['province_id'] = data['province'].apply(lambda x: list(data['province'].unique()).index(x))
     data['prefecture_id'] = data['prefecture'].apply(lambda x: list(data['prefecture'].unique()).index(x))
 
     # TODO: variables for standardization
     # Changelog: before 2024-02-23, var_std = var_demo + var_econ + var_app + var_live + var_mob
-    var_std = ['house_area', 'size', 'log_expenditure', 'log_income_percap', 'log_raw_income',
-               'power_cooking', 'freq_cooking', 'time_cooking',
+    var_std = ['house_area', 'size', 'log_expenditure', 'log_income_percap',
+               'log_power_cooking', 'freq_cooking', 'time_cooking',  # NB. used to be power_cooking
                'freq_water_heater', 'time_water_heater', 'label_water_heater',
-               'freq_ac', 'power_ac', 'time_ac',
+               'freq_ac', 'log_power_ac', 'time_ac',  # NB. used to be power_ac
                'type_heating', 'time_heating', 'area_heating', 'cost_heating']
 
     # final list of variables
     var_geo = ['prefecture_id', 'region']
-    var_demo = ['age', 'house_area', 'size', 'childrenNumber', 'elderNumber']
-    var_econ = ['log_expenditure', 'log_income_percap', 'log_raw_income']
+    var_demo = ['age', 'house_area', 'size']  # 'childrenNumber', 'elderNumber' are moved
+    var_econ = ['log_expenditure', 'log_income_percap']
     var_live = ['outside', 'live_days']
     var_family = ['IF_single_elderly', 'IF_singleAE', 'IF_singleA',
                   'IF_couple_elderly', 'IF_coupleA', 'IF_singleWithChildren',
@@ -283,17 +297,17 @@ if __name__ == '__main__':
 
     # training dataset after preprocessing
     train = data.copy(True)
-    train = preprocessing(train, vars=var_std)
+    train = preprocessing(train, vars=vars_all)
     # feature engineering with LASSO
     vars_all = {k: VAR_MAPPING[k] for k in vars_all}
-    var_lasso = lasso_modelling(train, indep_var=vars_all, dep_var='log_en_total_percap', max_iteration=1000)
+    var_lasso = lasso_modelling(train, indep_var=vars_all, dep_var='log_en_total_percap', max_iteration=500)
     print(var_lasso)
 
     silhouette = pd.DataFrame()  # find the optimal K
-    for i in range(1, 40, 4):  # options for min_weight
+    for i in range(1, 40, 2):  # options for min_weight
         mw = i / 100  # min_weight, the threshold for the optimal set of variables through LASSO
         vars = var_lasso.loc[var_lasso['coef'].abs() >= mw, 'vars'].values.tolist()
-        print(f'{len(vars)} variables were applied in clustering!')
+        print(f'Clustering with {vars}!')
 
         # Notably, the reason we do not use `Gap Statistics` for the optimal K selection is that it only works
         # in 2-D cluster, and in our case, the biggest issue is the deviation between variables is too large, which
@@ -306,7 +320,8 @@ if __name__ == '__main__':
         # plot_embedding(result, cls['cluster'], 't-SNE')  # cls['cluster'].values
 
         # KMeans with standardised and log-transformed data
-        score, cls = clustering_modelling(train, vars=vars, n_clusters=1, display=False)  # n_cluseters=1 means it needs experiment
+        # NB. n_cluseters=1 means it needs experiment
+        score, cls = clustering_modelling(train, vars=vars, n_clusters=1, display=False)
 
         # clustering validation
         valid_keys = ['en_cooking_percap', 'en_heating_percap',
@@ -338,19 +353,8 @@ if __name__ == '__main__':
     # reset columns by MultiIndex and remove the last row
     idx = [(k, np.argmax(silhouette[k].values) + 2) for k in silhouette.columns]
     silhouette.columns = pd.MultiIndex.from_tuples(idx)
+    silhouette.index = np.arange(2, len(silhouette) + 1).tolist() + ['mean']
 
-    # output with highlight: option 1, all/urban/rural with different colors
-    # for i, (k, _) in enumerate(silhouette.columns):
-    #     if k.startswith('all'):
-    #         c = 'Greens'
-    #     elif k.startswith('urban'):
-    #         c = 'Blues'
-    #     else:
-    #         c = 'Reds'
-    #
-    #     if i == 0:
-    #         stl = silhouette.style.background_gradient(cmap=c, subset=k, axis=None)
-    #     else:
-    #         stl = stl.background_gradient(cmap=c, subset=k, axis=None)
+    # output with highlight for silhouette scores and its mean values
     stl = silhouette.style.background_gradient(cmap='YlOrRd', axis=None)
     stl.to_excel(path / 'cluster-score.xlsx')

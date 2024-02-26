@@ -75,8 +75,8 @@ if __name__ == '__main__':
     # a31_keys = [f'a31_{i}' for i in range(1, 4, 1)]
     # _, a31_array = converter_a31_array(raw.loc[:, a31_keys])
     #
-    # a0101_keys = [f'a0101_{i}_2' for i in range(1, 15, 1)]
-    # _, a0101_array = converter_a0101_array(raw.loc[:, a0101_keys])
+    a0101_keys = [f'a0101_{i}_2' for i in range(1, 15, 1)]
+    _, a0101_array = converter_a0101_array(raw.loc[:, a0101_keys])
     # a0103_keys = [f'a0103_{i}' for i in range(1, 15, 1)]
     # _, a0103_array = converter_a0103_array(raw.loc[:, a0103_keys])
     # a0104_keys = [f'a0104_{i}' for i in range(1, 15, 1)]
@@ -133,4 +133,4 @@ if __name__ == '__main__':
     final['fuel_vehicle'] = converter_e67e72e73(raw.loc[:, 'e72'])        # 2014实际百公里油耗
     final['fuel_price_vehicle'] = converter_e67e72e73(raw.loc[:, 'e73'])  # 2014平均燃料价格
     final['cost_vehicle'] = converter_e50_2e74_1(raw.loc[:, 'e74_1'])
-    final.to_excel(Path('data') / 'vardata-1030.xlsx', index=False)
+    final.to_excel(Path('data') / 'vardata-0225.xlsx', index=False)

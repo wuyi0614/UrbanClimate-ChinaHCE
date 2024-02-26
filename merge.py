@@ -37,17 +37,8 @@ def merging(org: pd.DataFrame, tar: pd.DataFrame) -> pd.DataFrame:
     org = org.reset_index()
     # rename by the mapping
     names = [MERGE_MAPPING.get(c, 'id') for c in org.columns]
-
     org.columns = names
-    # report the diff
-    diff = set(var['id']).difference(set(org['id']))  # find the diff household IDs
-    org.id = org['id']
-    org = org.drop(columns=['id'])
-    org = org.dropna(how='all')  # drop NAs (incl. residents without energy data)
-    # rename by the mapping
-    names = [MERGE_MAPPING[c] for c in org.columns]
-    org = org.reset_index()
-    org.columns = ['id'] + names
+
     # report the diff
     diff = set(var['id']).difference(set(org.index))  # find the diff household IDs
     print(f'Difference: {len(var) - len(org)} in [{diff}]')
@@ -63,11 +54,13 @@ if __name__ == '__main__':
     calculate = pd.read_excel(cal_datafile, engine='openpyxl', sheet_name='总折算')
 
     # load the latest variable data
-    var_datafile = Path('data') / 'vardata-0207.xlsx'
+    # NB. changed on 2024-02-25, was vardata-0207.xlsx.
+    var_datafile = Path('data') / 'vardata-0225.xlsx'
     var = pd.read_excel(var_datafile, engine='openpyxl')
     # remove all the emission columns
     drops = [it for it in var.columns if 'emi' in it]
     var = var.drop(columns=drops)
 
     merged = merging(calculate, var)
-
+    merge_datafile = Path('data') / 'mergedata-0225.xlsx'
+    merged.to_excel(merge_datafile, index=False)

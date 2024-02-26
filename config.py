@@ -369,7 +369,11 @@ def converter_a3_1(series: pd.Series):
 def converter_income_percap(array: pd.DataFrame):
     # calculate income percap based on income and resident size
     # use `a62` and `a63`
-    return None, array['a62'].astype(float).values / array['a63'].astype(int).values
+    _, raw = converter_a62_raw(array['a62'])
+    _, size = converter_a63(array['a63'])
+    percap = raw / size
+    percap[percap < 0] = -99
+    return None, percap
 
 
 def converter_a30_array(data: pd.DataFrame):
@@ -740,64 +744,52 @@ def converter_e67e72e73(series):
 
 
 # 2. 特殊变量的构造
-def create_demographic_variable(age, rel_array):
-    """家庭结构组成
-    单身汉；
-    夫妻；
-    双亲+1孩；
-    双亲+2孩；
-    单亲+1孩；
-    单亲+2孩；
-    5人以上大家庭；
-    独居老人；
-    老年夫妻
-    其他"""
-    # 需要用到的数组:
-    rel_mapping = {'配偶': 0,
-                   '兄弟姐妹': 1,
-                   '父母': 2,
-                   '配偶的父母': 2,
-                   '子女': 3,
-                   '女婿/儿媳': 3,
-                   '曾祖父母/曾外祖父母': 4,
-                   '祖父母/外祖父母': 4,
-                   '孙子(女)/外孙子(女)': 5,
-                   '姑妈(父亲的姐妹)': 6,
-                   '配偶的其他亲属': 6,
-                   '其他非亲属': 6,
-                   '其他亲属': 6}
-    age_mapping = (([0, 20], 0),
-                   ([21, 40], 1),
-                   ([41, 60], 2),
-                   ([61, 80], 3),
-                   ([81, 1000], 4))
+def create_demographic_variable(age_array, rel_array):
+    """
+    The demographic structure is built on the arrays of age and relationship.
 
-    # 判断规则: 先构造一列新的标记
-    single = lambda x: set(x) == {-99}  # 也是独居老人的条件之一
-    couple = lambda x: set(x) == {0, -99}  # 也是老年夫妻的条件之一
-    couple_kid_one = lambda x: set(x) == {0, 3, -99} or (set(x) == {2, -99} and Counter(x)[2] > 1)
-    couple_kid_two = lambda x: (set(x) == {0, 3, -99} and Counter(x)[3] > 1) or (
-            set(x) == {1, 2, -99} and Counter(x)[2] > 1)
-    single_kid_one = lambda x: set(x) == {3, -99} or (set(x) == {2, -99} and Counter(x)[2] == 1)
-    single_kid_two = lambda x: (set(x) == {3, -99} and Counter(x)[3] > 1) or (
-            set(x) == {1, 2, -99} and Counter(x)[2] == 1)
-    grand_parent_kids = lambda x: set(x) == {4, -99} or set(x) == {5, -99} or set(x) == {0, 4, -99} or set(x) == {0, 5,
-                                                                                                                  -99}
-    big_family = lambda x: Counter(x)[-99] <= 10
+    relationship types:
+        单身汉；
+        夫妻；
+        双亲+1孩；
+        双亲+2孩；
+        单亲+1孩；
+        单亲+2孩；
+        5人以上大家庭；
+        独居老人；
+        老年夫妻
+        其他
+    """
+    # the original relationship definition in survey
+    rel_mapping = {
+        "配偶": 0,
+        "兄弟姐妹": 1,
+        "父母": 2,
+        "配偶的父母": 2,
+        "子女": 3,
+        "侄子/侄女（兄弟的子女）": 3,
+        "外甥/外甥女（姐妹的子女）": 3,
+        "女婿/儿媳": 3,
+        "曾祖父母/曾外祖父母": 4,
+        "祖父母/外祖父母": 4,
+        "孙子（女）/外孙子（女）": 5,
+        "曾孙子（女）/曾外孙子（女）": 5,
+        "姑妈（父亲的姐妹）": 6,
+        "舅舅（母亲的兄弟）": 6,
+        "伯父/叔叔（父亲的兄弟）": 6,
+        "配偶的其他亲属": 6,
+        "兄弟姐妹的配偶": 6,
+        "配偶的兄弟姐妹": 6,
+        "配偶的兄弟姐妹的配偶": 6,
+        "其他非亲属": 6,
+        "其他亲属": 6,
+        "空值": 999999
+    }
 
-    single = rel_array.apply(single, axis=1)
-    couple = rel_array.apply(couple, axis=1)
-    couple_kid_one = rel_array.apply(couple_kid_one, axis=1)
-    couple_kid_two = rel_array.apply(couple_kid_two, axis=1)
-    single_kid_one = rel_array.apply(single_kid_one, axis=1)
-    single_kid_two = rel_array.apply(single_kid_two, axis=1)
-    grand_parent_kids = rel_array.apply(grand_parent_kids, axis=1)
-    big_family = rel_array.apply(big_family, axis=1)
-
-    # 判断规则：根据年龄判断
-    elderly = age.apply(lambda x: x >= 60)
-    single_elderly = (elderly & single)
-    couple_elderly = (elderly & couple)
+    # NB. rules have been updated on 2024-02-25 by Yi according to dataClean_code.py.
+    assert len(age_array) == len(rel_array), f'The length of age and relationship array must be equal!'
+    for idx in range(len(age_array)):
+        pass
 
     # 赋值
     mapping = dict(
@@ -813,7 +805,7 @@ def create_demographic_variable(age, rel_array):
         big_family=7
     )
     other = 7
-    relationship = pd.Series([other] * len(age))
+    relationship = pd.Series([other] * len(age_array))
     for key, v in mapping.items():
         relationship[locals()[key]] = v
 

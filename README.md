@@ -37,3 +37,13 @@ Notably, as accounting the carbon emission based on the survey is rather difficu
   - [ ] S2: Machine learning approach
 
 ## Quick start and test
+
+To start building the dataset, please follow the steps by, 
+
+- run `build.py` with raw data, i.e. `CGSS-unprocessed-202302.xlsx`, and specify the output file, e.g. `vardata-<mmdd>.xlsx`
+- run `check.py` to add up vehicle and fuel data, and usually the output file has the same datafile name
+- run `merge.py` to mapping household features with energy consumption data by ids
+- run `cluster.py` to process data and do clustering experiments
+- run `typology.py` to export the UI-friendly clustering summary
+- run `result_one.py` to produce the first batch of figures
+- run `result_two.py` to produce the figures of Lorenz and others

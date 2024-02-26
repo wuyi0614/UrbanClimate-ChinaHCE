@@ -804,11 +804,11 @@ if __name__ == '__main__':
     missing = add_general(missing, raw, columns=['e2'])
 
     # add up variables
-    varfile = Path('data') / 'vardata-1030.xlsx'
+    varfile = Path('data') / 'vardata-0225.xlsx'
     var = pd.read_excel(varfile, engine='openpyxl')
     var = add_vehicle(var, raw)
     var = add_fuel(var, raw)
-    var.to_excel(Path('data') / 'vardata-1030.xlsx', index=False)
+    var.to_excel(Path('data') / 'vardata-0225.xlsx', index=False)
 
     # unittest for each source of energy use
     for i in range(0, 10):
@@ -826,4 +826,4 @@ if __name__ == '__main__':
 
     # overall test
     use = main(raw)
-    use.to_excel(Path('data') / 'energyuse-1103.xlsx', index=False)
+    use.to_excel(Path('data') / 'energyuse-0225.xlsx', index=False)

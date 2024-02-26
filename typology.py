@@ -47,7 +47,7 @@ if __name__ == '__main__':
     path = Path('data') / 'clustered-0223'
 
     # specify a right version of clustered data
-    clusterfile = Path('data') / 'clustered-0223' / 'cluster-all-0019.xlsx'
+    clusterfile = Path('data') / 'clustered-0223' / 'cluster-all-0033.xlsx'
     cluster = pd.read_excel(clusterfile)
 
     # export grouped data with format

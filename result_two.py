@@ -94,7 +94,7 @@ if __name__ == '__main__':
     inequality(*array, labels=labels, name='component', save=path)
 
     # GINI coefs after clustering
-    clusterfile = Path('data') / 'clustered-0223' / 'cluster-all-0026.xlsx'
+    clusterfile = Path('data') / 'clustered-0223' / 'cluster-all-0033.xlsx'
     cluster = pd.read_excel(clusterfile)
     cluster['en_appliance'] = cluster[compress].sum(axis=1)  # compress 6 types into 1 type
     # all GINI
@@ -110,7 +110,7 @@ if __name__ == '__main__':
         print(c)
         labels += [f'{c}']
 
-    inequality(*array, labels=labels, name='urban')
+    inequality(*array, labels=labels, name='urban', save=path)
     # rural GINI
     group = cluster[~cluster.cluster_rural.isna()].groupby('cluster_rural')
     array, labels = [], []
@@ -119,7 +119,7 @@ if __name__ == '__main__':
         c = CLUSTER_MAPPING['rural'][l][1]
         labels += [f'{c}']
 
-    inequality(*array, labels=labels, name='rural')
+    inequality(*array, labels=labels, name='rural', save=path)
 
     for a, l in zip(array, labels):
         print(f'{l}: {len(a)}')
