@@ -792,10 +792,11 @@ def main(data: pd.DataFrame) -> pd.DataFrame:
 
 if __name__ == '__main__':
     # load unconverted data
-    raw_datafile = Path('data') / 'CGSS-unprocessed-202302.xlsx'
+    raw_datafile = Path('data') / 'CGSS-updateid-202402.xlsx'
     raw = pd.read_excel(raw_datafile, engine='openpyxl', header=[0], skiprows=[1])
 
     # load calculated data
+    tag = '0229'
     cal_datafile = Path('data') / 'CGSS-calculate-20231019.xlsx'
     # sheets = ['烹饪', '冰箱', '洗衣', '电视', '计算机', '照明', '采暖', '热水器', '空调', '交通']  # 总折算
     # check missing data
@@ -804,11 +805,11 @@ if __name__ == '__main__':
     missing = add_general(missing, raw, columns=['e2'])
 
     # add up variables
-    varfile = Path('data') / 'vardata-0225.xlsx'
+    varfile = Path('data') / f'vardata-{tag}.xlsx'
     var = pd.read_excel(varfile, engine='openpyxl')
     var = add_vehicle(var, raw)
     var = add_fuel(var, raw)
-    var.to_excel(Path('data') / 'vardata-0225.xlsx', index=False)
+    var.to_excel(Path('data') / f'vardata-{tag}.xlsx', index=False)
 
     # unittest for each source of energy use
     for i in range(0, 10):
@@ -826,4 +827,4 @@ if __name__ == '__main__':
 
     # overall test
     use = main(raw)
-    use.to_excel(Path('data') / 'energyuse-0225.xlsx', index=False)
+    use.to_excel(Path('data') / f'energyuse-{tag}.xlsx', index=False)

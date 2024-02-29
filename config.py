@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 
 from collections import Counter
+from tqdm import tqdm
 
 # 0. Color paletts
 WSJ = {
@@ -37,8 +38,8 @@ VAR_MAPPING = {
     "age": "Mean age",
     "house_area": "House area",
     "size": "Family size",
-    "childrenNumber": "No. of Children",
-    "elderNumber": "No. of Elderly",
+    "children_num": "No. of Children",
+    "elderly_num": "No. of Elderly",
     "log_expenditure": "Annual expenditure(log)",
     "log_income_percap": "Per capita income(log)",
     "log_raw_income": "Annual income(log)",
@@ -70,16 +71,16 @@ VAR_MAPPING = {
     "vehicle_use": "Actual vehicle displacement",
     "outside": "Stay out days",
     "live_days": "Stay home days",
-    "IF_single_elderly": "Is single elderly family",
-    "IF_singleAE": "Is single adult with \nelderly family",
-    "IF_singleA": "Is single adult only family",
-    "IF_couple_elderly": "Is couple elderly family",
-    "IF_coupleA": "Is couple adults family",
-    "IF_singleWithChildren": "Is single family with children",
-    "IF_coupleWithChildren": "Is couple family with children",
-    "IF_grandparentKids": "Is family with grandparents and children",
-    "IF_bigFamily": "Is big family",
-    "IF_existElderly": "Is family with elderly"
+    "if_single_elderly": "Is single elderly family",
+    "if_singleAE": "Is single adult with \nelderly family",
+    "if_singleA": "Is single adult only family",
+    "if_couple_elderly": "Is couple elderly family",
+    "if_coupleA": "Is couple adults family",
+    "if_singleWithChildren": "Is single family with children",
+    "if_coupleWithChildren": "Is couple family with children",
+    "if_grandparentKids": "Is family with grandparents and children",
+    "if_bigFamily": "Is big family",
+    "if_existElderly": "Is family with elderly"
 }
 
 # clustering mapping›
@@ -744,6 +745,8 @@ def converter_e67e72e73(series):
 
 
 # 2. 特殊变量的构造
+
+# 2. 特殊变量的构造
 def create_demographic_variable(age_array, rel_array):
     """
     The demographic structure is built on the arrays of age and relationship.
@@ -760,6 +763,7 @@ def create_demographic_variable(age_array, rel_array):
         老年夫妻
         其他
     """
+
     # the original relationship definition in survey
     rel_mapping = {
         "配偶": 0,
@@ -786,31 +790,238 @@ def create_demographic_variable(age_array, rel_array):
         "空值": 999999
     }
 
+    # 输入数据样本请看以下注释代码
+    # # extract age_array from row data
+    # sheet = "data/CGSS-unprocessed-202302.xlsx"
+    # df = pd.read_excel(sheet, engine='openpyxl', header=[0], skiprows=[1])
+    # age_list = [f'a0101_{i}_2' for i in range(1, 15, 1)]
+    # age_array = (df[age_list]).astype('float')
+    #
+    # 请注意需要计算采访者本身的年龄并考虑到家庭规模中
+    # # calculate survey responder self's age
+    # self_age = (df['a3_1'].astype('float'))
+    # age_array['a0101_15_2'] = 2014 - self_age
+    #
+    # # extract rel_array from row data
+    # rel_list = [f'a0106_{i}' for i in range(1, 15, 1)]
+    # rel_array = df[rel_list]
+
+    # Create demographicType dataframe
+    demographicType = []
+
     # NB. rules have been updated on 2024-02-25 by Yi according to dataClean_code.py.
     assert len(age_array) == len(rel_array), f'The length of age and relationship array must be equal!'
     for idx in range(len(age_array)):
-        pass
+        # Calculate family_size
+        family_size = (age_array.loc[idx]).count()
 
-    # 赋值
-    mapping = dict(
-        single=0,
-        couple=1,
-        couple_kid_one=2,
-        couple_kid_two=2,
-        single_kid_one=3,
-        single_kid_two=3,
-        grand_parent_kids=4,
-        single_elderly=5,
-        couple_elderly=6,
-        big_family=7
-    )
-    other = 7
-    relationship = pd.Series([other] * len(age_array))
-    for key, v in mapping.items():
-        relationship[locals()[key]] = v
+        # convert relationship state
+        if family_size == 1:
+            rel_state = [-1]
+        else:
+            # if data do not have header the then we need use i+1
+            rel_state = rel_array.loc[idx][:family_size - 1].apply(
+                lambda x: rel_mapping[x]).values.tolist()
 
-    mapping['other'] = other
-    return mapping, relationship
+        # code family age group
+        list = [*range(family_size - 1)]
+        (list.append(14))
+        a_age = (age_array.loc[idx][list])
+        a_family_age = []
+        for one in a_age:
+            if one < 18:
+                a_family_age.append(0)
+            if one >= 55:
+                a_family_age.append(1)
+            else:
+                a_family_age.append(2)
+
+        # Identify family type
+        family_type = []
+        # big family
+        set_fmily = set(rel_state)
+        if family_size >= 5:
+            family_type.append(7)
+        # single
+        elif family_size == 1 and a_family_age[0] != 1:
+            family_type.append(0)
+        # single elderly
+        elif family_size == 1 and a_family_age[0] == 1:
+            family_type.append(5)
+        # couple
+        elif not (1 in a_family_age) and len(rel_state) == 1 and 0 in rel_state:
+            family_type.append(1)
+        # couple elderly
+        elif 1 in a_family_age and len(rel_state) == 1 and 0 in rel_state:
+            family_type.append(6)
+        elif family_size == 2 and not (0 in a_family_age) and not (2 in a_family_age):
+            family_type.append(6)
+        # single with kid
+        elif family_size >= 2 and family_size < 5 and 0 in a_family_age and len(
+                np.where(np.array(rel_state == 2))) == 1 \
+                and set_fmily.issubset(
+            set([3, 2, 1])):
+            family_type.append(3)
+        # couple with kid
+        elif family_size >= 2 and family_size < 5 and 0 in a_family_age and 2 in a_family_age \
+                and 3 in rel_state and 0 in rel_state and not (4 in rel_state) \
+                and not (5 in rel_state):
+            family_type.append(2)
+        # grandparent with kid
+        elif family_size >= 2 and family_size < 5 and 0 in a_family_age and 1 in a_family_age \
+                and set_fmily.issubset(
+            set([4, 5, 1, 0])):
+            family_type.append(4)
+        # small family with elderly (family_size=2)（二代+一代，已成年）
+        elif family_size == 2 and 2 in a_family_age and 1 in a_family_age \
+                and not (0 in rel_state):
+            family_type.append(10)
+        # small family without elderly：（family_size=2）（二代+一代，已成年）
+        elif family_size == 2 and not (0 in a_family_age) and not (1 in a_family_age) \
+                and not (0 in rel_state):
+            family_type.append(11)
+        # medium family with elderly（二代（e.g子女）已成年）
+        elif family_size > 2 and family_size <= 4 and 1 in a_family_age:
+            family_type.append(8)
+        # medium family without elderly（二代（e.g子女）已成年）
+        elif family_size > 2 and family_size <= 4 and not (1 in a_family_age):
+            family_type.append(9)
+        # 特殊家庭结构案例处理，这些条件放在最后运行
+        # id 2598; id 13629
+        elif 5 in rel_state and not (2 in rel_state) and not (3 in rel_state) and not (
+                1 in a_family_age):
+            family_type.append(4)
+        # id 4096
+        elif family_size == 2 and (6 in rel_state) and abs(a_age[0] - a_age[1]) < 20:
+            family_type.append(11)
+        # id 5431
+        elif family_size == 2 and (6 in rel_state) and abs(a_age[0] - a_age[1]) > 20:
+            family_type.append(3)
+        else:
+            family_type.append(-1)
+            print("this cannot find the family type: ", idx)
+
+        # Output family type demographic
+        demographicType.append(family_type)
+
+    out = pd.DataFrame(demographicType)
+    return out
+
+
+# 构建11个if_demographic虚拟变量：
+# 创建if_single_elderly: 1-Yes; 0:NO
+def get_if_single_elderly(series):
+    out = series == 5
+    return out.sum(axis=1)
+
+
+# 创建if_single(both Adult and Elderly): 1-Yes; 0:NO
+def get_if_singleAE(series):
+    out = (series == 5) | (series == 0)
+    return out.sum(axis=1)
+
+
+# 创建if_single(only Adult): 1-Yes; 0:NO
+def get_if_singleA(series):
+    out = series == 0
+    return out.sum(axis=1)
+
+
+# 创建if_couple_elderly: 1-Yes; 0:NO
+def get_if_couple_elderly(series):
+    out = series == 6
+    return out.sum(axis=1)
+
+
+# 创建if_couple(only Adult): 1-Yes; 0:NO
+def get_if_coupleA(series):
+    out = series == 1
+    return out.sum(axis=1)
+
+
+# 创建if_singleWithChildren: 1-Yes; 0:NO
+def get_if_singleWithChildren(series):
+    out = series == 3
+    return out.sum(axis=1)
+
+
+# 创建if_coupleWithChildren: 1-Yes; 0:NO
+def get_if_coupleWithChildren(series):
+    out = series == 2
+    return out.sum(axis=1)
+
+
+# 创建if_grandparentKids: 1-Yes; 0:NO
+def get_if_grandparentKids(series):
+    out = series == 4
+    return out.sum(axis=1)
+
+
+# 创建if_bigFamily: 1-Yes; 0:NO
+def get_if_bigFamily(series):
+    out = series == 7
+    return out.sum(axis=1)
+
+
+#  获取老年人数目
+def get_ElderlyNumber(age_array):
+    series = (age_array >= 55)
+    return series.sum(axis=1)
+
+
+#  获取年轻人数目
+def get_ChildrenNumber(age_array):
+    series = age_array < 18
+    return series.sum(axis=1)
+
+
+#  if_existElderly，输入ElderlyNumber列
+def get_if_existElderly(series):
+    out = series != 0
+    return out.sum(axis=1)
+
+
+#  if_existChildren，输入ChildrenNumber列
+def get_if_existChildren(series):
+    out = series != 0
+    return out.sum(axis=1)
+
+
+# 南北区域转换
+def get_region(series):
+    # data from province
+    mapping = {
+        "北京市": 0,
+        "天津市": 0,
+        "河北省": 0,
+        "山西省": 0,
+        "内蒙古": 0,
+        "辽宁省": 0,
+        "吉林省": 0,
+        "黑龙江省": 0,
+        "上海市": 1,
+        "江苏省": 1,
+        "浙江省": 1,
+        "安徽省": 1,
+        "福建省": 1,
+        "江西省": 1,
+        "山东省": 0,
+        "河南省": 0,
+        "湖北省": 1,
+        "湖南省": 1,
+        "广东省": 1,
+        "广西壮族自治区": 1,
+        "重庆市": 1,
+        "四川省": 1,
+        "贵州省": 1,
+        "云南省": 1,
+        "陕西省": 0,
+        "甘肃省": 0,
+        "青海省": 0,
+        "宁夏回族自治区": 0
+    }
+    array = series.apply(lambda x: mapping.get(x, -99))
+    return mapping, pd.DataFrame(array.values)
 
 
 # 构造地区变量: 四个地区

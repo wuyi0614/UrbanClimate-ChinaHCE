@@ -14,7 +14,7 @@ if __name__ == '__main__':
     # 2014: 3863 lines, 1003 columns
     # 2013: ...
     # 2012: ...
-    sheet = Path('data') / 'CGSS-unprocessed-202302.xlsx'
+    sheet = Path('data') / 'CGSS-updateid-202402.xlsx'
     raw = pd.read_excel(sheet, engine='openpyxl', header=[0], skiprows=[1])
 
     # convert single questions
@@ -68,23 +68,28 @@ if __name__ == '__main__':
         'a0106': 'fam_relationship'  # [您{A0101_1_1}是您的] 请问他们是您的？
     }
 
+    # array-like variables
     # a28_keys = [f'a28_{i}' for i in range(1, 7, 1)]
     # _, a28_array = converter_a28_array(raw.loc[:, a28_keys])
     # a30_keys = [f'a30_{i}' for i in range(1, 13, 1)]
     # _, a30_array = converter_a30_array(raw.loc[:, a30_keys])
     # a31_keys = [f'a31_{i}' for i in range(1, 4, 1)]
     # _, a31_array = converter_a31_array(raw.loc[:, a31_keys])
-    #
-    a0101_keys = [f'a0101_{i}_2' for i in range(1, 15, 1)]
-    _, a0101_array = converter_a0101_array(raw.loc[:, a0101_keys])
     # a0103_keys = [f'a0103_{i}' for i in range(1, 15, 1)]
     # _, a0103_array = converter_a0103_array(raw.loc[:, a0103_keys])
     # a0104_keys = [f'a0104_{i}' for i in range(1, 15, 1)]
     # _, a0104_array = converter_a0104_array(raw.loc[:, a0104_keys])
     # a0105_keys = [f'a0105_{i}' for i in range(1, 15, 1)]
     # _, a0105_array = converter_a0105_array(raw.loc[:, a0105_keys])
+
+    # family member ages
+    # a0101_keys = [f'a0101_{i}_2' for i in range(1, 15, 1)]
+    # _, age_array = converter_a0101_array(raw.loc[:, a0101_keys])
+    # respondent_age = (raw['a3_1'].astype('float'))
+    # age_array['a0101_15_2'] = 2014 - respondent_age
+    #
     # a0106_keys = [f'a0106_{i}' for i in range(1, 15, 1)]
-    # _, a0106_array = converter_a0106_array(raw.loc[:, a0106_keys])
+    # _, rel_array = converter_a0106_array(raw.loc[:, a0106_keys])
 
     # cast a new feature dataframe
     fdf = raw.loc[:, ['id', 'province', 'prefecture', 'county']]
@@ -93,44 +98,61 @@ if __name__ == '__main__':
         col.columns = [label]
         fdf = pd.concat([fdf, col], axis=1)
 
-    # for f, label in array_features.items():
-    #     col = locals()[f'{f}_array'].fillna(-99)
-    #     labels = [f'{label}{i}' for i in range(1, col.shape[1] + 1, 1)]
-    #     col.columns = labels
-    #     fdf = pd.concat([fdf, col], axis=1)
-
     final = fdf[~fdf.id.isna()]
 
-    # 电器特征抽取
-    # 炊事设备
+    # appliance-related features
+    # cooker
     final['num_cooking'] = converter_e12(raw.loc[:, 'e12'])
     final['power_cooking'] = converter_e13141516c(raw.loc[:, [f'e{i}c' for i in range(13, 17, 1)]])
     final['freq_cooking'] = converter_e13141516d(raw.loc[:, [f'e{i}d' for i in range(13, 17, 1)]])
     final['time_cooking'] = converter_e13141516e(raw.loc[:, [f'e{i}e' for i in range(13, 17, 1)]])
 
-    # 热水器
+    # water heater
     final['num_water_heater'] = converter_e12(raw.loc[:, 'e56'])
     final['freq_water_heater'] = converter_e13141516d(raw.loc[:, [f'e{i}e' for i in (57, 58)]])
     final['time_water_heater'] = converter_e13141516e(raw.loc[:, [f'e{i}f' for i in (57, 58)]])
     final['label_water_heater'] = converter_e5758g(raw.loc[:, [f'e{i}g' for i in (57, 58)]])
 
-    # 空调
+    # air conditioner
     final['num_ac'] = converter_e12(raw.loc[:, 'e56'])
     final['freq_ac'] = converter_e60616263ge42(raw.loc[:, [f'e{i}g' for i in range(60, 64, 1)]])
     final['power_ac'] = converter_e60616263d(raw.loc[:, [f'e{i}d' for i in range(60, 64, 1)]])
     final['time_ac'] = converter_e13141516e(raw.loc[:, [f'e{i}h' for i in range(60, 64, 1)]])
     final['label_ac'] = converter_e5758g(raw.loc[:, [f'e{i}e' for i in range(60, 64, 1)]])
 
-    # 供暖
+    # space heating
     final['type_heating'] = converter_e39(raw.loc[:, 'e39'])
     final['time_heating'] = converter_e60616263ge42(raw.loc[:, ['e42']])
     final['area_heating'] = converter_e44(raw.loc[:, 'e44'])
     final['cost_heating'] = converter_e50_2e74_1(raw.loc[:, 'e50_2'])
 
-    # 交通工具
+    # vehicle
     final['own_vehicle'] = converter_e64(raw.loc[:, 'e64'])
-    final['emit_vehicle'] = converter_e67e72e73(raw.loc[:, 'e67'])
+    final['emit_vehicle'] = converter_e67e72e73(raw.loc[:, 'e67'])        # 汽车的发动机排量
     final['fuel_vehicle'] = converter_e67e72e73(raw.loc[:, 'e72'])        # 2014实际百公里油耗
     final['fuel_price_vehicle'] = converter_e67e72e73(raw.loc[:, 'e73'])  # 2014平均燃料价格
     final['cost_vehicle'] = converter_e50_2e74_1(raw.loc[:, 'e74_1'])
-    final.to_excel(Path('data') / 'vardata-0225.xlsx', index=False)
+
+    # demographic features
+    age_list = [f'a0101_{i}_2' for i in range(1, 15, 1)]
+    age_array = (raw[age_list]).astype('float')
+    # calculate survey self's age
+    self_age = (raw['a3_1'].astype('float'))
+    age_array['a0101_15_2'] = 2014 - self_age
+    rel_list = [f'a0106_{i}' for i in range(1, 15, 1)]
+    rel_array = raw[rel_list]
+
+    series = create_demographic_variable(age_array, rel_array)
+    funcs = [get_if_single_elderly, get_if_singleAE, get_if_singleA, get_if_couple_elderly,
+             get_if_coupleA, get_if_singleWithChildren, get_if_coupleWithChildren, get_if_grandparentKids,
+             get_if_bigFamily, get_if_existElderly, get_if_existChildren]
+    for f in funcs:
+        c = f.__name__.replace('get_', '')
+        final[c] = f(series)
+
+    final['children_num'] = get_ChildrenNumber(age_array)
+    final['elderly_num'] = get_ElderlyNumber(age_array)
+
+    # geo-regional feature
+    final['region'] = get_region(raw['province'])[1]
+    final.to_excel(Path('data') / 'vardata-0229.xlsx', index=False)

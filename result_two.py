@@ -72,7 +72,7 @@ if __name__ == '__main__':
     path.mkdir(exist_ok=True)
 
     # load data
-    datafile = Path('data') / 'mergedata-1104.xlsx'
+    datafile = Path('data') / 'mergedata-1114.xlsx'
     raw = pd.read_excel(datafile, engine='openpyxl')
     # preprocessing and criteria filtering
     data = raw[raw['en_total'] > 0]
@@ -94,7 +94,7 @@ if __name__ == '__main__':
     inequality(*array, labels=labels, name='component', save=path)
 
     # GINI coefs after clustering
-    clusterfile = Path('data') / 'clustered-0223' / 'cluster-all-0033.xlsx'
+    clusterfile = Path('data') / 'clustered-0223' / 'cluster-all-0019.xlsx'
     cluster = pd.read_excel(clusterfile)
     cluster['en_appliance'] = cluster[compress].sum(axis=1)  # compress 6 types into 1 type
     # all GINI

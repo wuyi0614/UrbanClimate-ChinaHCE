@@ -54,13 +54,14 @@ if __name__ == '__main__':
     calculate = pd.read_excel(cal_datafile, engine='openpyxl', sheet_name='总折算')
 
     # load the latest variable data
+    tag = '0229'
     # NB. changed on 2024-02-25, was vardata-0207.xlsx.
-    var_datafile = Path('data') / 'vardata-0225.xlsx'
+    var_datafile = Path('data') / f'vardata-{tag}.xlsx'
     var = pd.read_excel(var_datafile, engine='openpyxl')
     # remove all the emission columns
     drops = [it for it in var.columns if 'emi' in it]
     var = var.drop(columns=drops)
 
     merged = merging(calculate, var)
-    merge_datafile = Path('data') / 'mergedata-0225.xlsx'
+    merge_datafile = Path('data') / f'mergedata-{tag}.xlsx'
     merged.to_excel(merge_datafile, index=False)
