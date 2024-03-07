@@ -6,6 +6,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 from tqdm import tqdm
+from pathlib import Path
+
 from sklearn.model_selection import GridSearchCV
 from sklearn.linear_model import Lasso
 from sklearn.cluster import KMeans
@@ -47,6 +49,7 @@ def lasso_modelling(data: pd.DataFrame,
                     alpha_range: list = None,
                     max_iteration=1000,
                     display=True,
+                    save: Path = Path('data') / 'img-0223',
                     **params):
     if alpha_range is None:
         alpha_range = np.linspace(0.001, 0.1, 1000)
@@ -59,7 +62,7 @@ def lasso_modelling(data: pd.DataFrame,
     result = GridSearchCV(model,
                           param_grid={'alpha': alpha_range, 'max_iter': [max_iteration]},
                           cv=10,
-                          scoring=params.get('scoring', 'neg_mean_absolute_error'),  # might be changed
+                          scoring=params.get('scoring', 'mean_squared_error'),  # might be changed
                           n_jobs=4)
     result.fit(x, y)
     print('Scoring: %.5f' % result.best_score_)
@@ -79,13 +82,13 @@ def lasso_modelling(data: pd.DataFrame,
 
     # output distribution of weights of variables
     if display:
-        fig = plt.figure(figsize=(6, 6))
+        fig = plt.figure(figsize=(6, 12))
         x_range = range(len(coef))
         plt.barh(x_range, coef.coef.values, color=coef.colors.values, alpha=0.65)
         plt.vlines(0, -0.5, len(coef) - 0.5, color='grey', linewidth=0.5)
 
         ticks = [indep_var[v] for v in coef.vars.values]
-        plt.yticks(x_range, labels=ticks, size=10, rotation=0, verticalalignment='center', horizontalalignment='right')
+        plt.yticks(x_range, labels=ticks, size=9, rotation=0, verticalalignment='center', horizontalalignment='right')
         plt.ylabel("Feature importance", fontsize=12)
         plt.xlabel("Household characteristics", fontsize=12)
 
@@ -95,7 +98,7 @@ def lasso_modelling(data: pd.DataFrame,
         plt.margins(0.01)
         plt.tight_layout()
         # plt.grid(axis="x", color="grey", alpha=0.3)
-        fig.savefig('img/lasso1.pdf', format='pdf', dpi=200)
+        fig.savefig(save / 'optimal-lasso.pdf', format='pdf', dpi=200)
         plt.show()
 
     return la_coef
@@ -204,8 +207,6 @@ def plot_embedding(data, label, title):
 
 if __name__ == '__main__':
     # load data and tests
-    from pathlib import Path
-
     path = Path('data') / 'clustered-0223'
     path.mkdir(exist_ok=True)
 
@@ -280,8 +281,8 @@ if __name__ == '__main__':
     for v in [var_geo, var_demo, var_econ, var_app, var_mob, var_live, var_family]:
         vv += v
         vars_map = {k: VAR_MAPPING[k] for k in vv}
-        var_lasso = lasso_modelling(train, indep_var=vars_map, dep_var='log_en_total_percap',
-                                    tol=1e-4, max_iteration=100, scoring='neg_mean_absolute_error')
+        var_lasso = lasso_modelling(train, indep_var=vars_map, dep_var='log_en_total_percap', save=path,
+                                    tol=1e-4, max_iteration=100)
 
         v = var_lasso.loc[var_lasso['coef'].abs() > 0.07, 'vars'].values.tolist()
         score, cls = clustering_modelling(data, vars=v, epoch=13, n_clusters=1, display=False)
@@ -304,10 +305,10 @@ if __name__ == '__main__':
     # run clustering: record K values and Silhouette scores for a heatmap selection
     silhouette = pd.DataFrame()
     # use the min/max of LASSO coefficients to create grids for searching
-    for i in np.linspace(0.0, var_lasso['coef'].abs().max(), num=20, endpoint=False):
+    for i in np.linspace(0.01, 0.08, 8, endpoint=True):
         vars = var_lasso.loc[var_lasso['coef'].abs() >= i, 'vars'].values.tolist()
         tag = str(round(i, 2))  # tag for output
-        if len(vars) <= 3:
+        if len(vars) <= 1:
             print('Clustering is over due to an empty variable list!')
             break
 

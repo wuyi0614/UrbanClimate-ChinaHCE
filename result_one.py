@@ -19,7 +19,7 @@ from config import CLUSTER_MAPPING_2024 as CLUSTER_MAPPING
 # assign colors to groups
 COLORS = {'LED-P': 'darkred',
           'CDE': 'darkgreen',
-          'HDY': 'darkblue',
+          'DHY': 'darkblue',
           'HDN': 'lightblue',
           'LED-E': 'lightred',
           'WDS': 'lightgreen',

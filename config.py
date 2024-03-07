@@ -121,23 +121,23 @@ CLUSTER_MAPPING_2024 = {
     "all": {
         0: ['Less-energy-demanded grandparenting family', 'LED-P'],
         1: ['Cooking-demanded elderly family', 'CDE'],
-        2: ['Driving-demanded high-income younger family', 'HDY'],
+        2: ['Driving-demanded high-income younger family', 'DHY'],
         3: ['Heating-demanded northern family', 'HDN'],
         4: ['Less-energy-demanded extended family', 'LED-E'],
-        5: ['Waterheating-demanded southern family', 'WDS']
+        5: ['Water-heating-demanded southern family', 'WDS']
     },
     "urban": {
         0: ['Less-energy-demanded grandparenting family', 'LED-P'],
-        1: ['Driving-demanded high-income younger family', 'HDY'],
+        1: ['Driving-demanded high-income younger family', 'DHY'],
         2: ['Less-energy-demanded extended family', 'LED-E'],
         3: ['Heating-demanded northern family', 'HDN'],
         4: ['Cooking-demanded elderly family', 'CDE']
     },
     "rural": {
-        0: ['Waterheating-demanded southern family', 'WDS'],
+        0: ['Water-heating-demanded southern family', 'WDS'],
         1: ['Heating-demanded northern family', 'HDN'],
         2: ['Cooking-demanded elderly family', 'CDE'],
-        3: ['Driving-demanded high-income younger family', 'HDY'],
+        3: ['Driving-demanded high-income younger family', 'DHY'],
         4: ['Less-energy-demanded family', 'LED']
     }
 }
