@@ -11,7 +11,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from pathlib import Path
-from config import WSJ, CLUSTER_MAPPING
+from config import WSJ
+from config import CLUSTER_MAPPING_2024 as CLUSTER_MAPPING
 
 
 def gini(arr):
@@ -72,7 +73,7 @@ if __name__ == '__main__':
     path.mkdir(exist_ok=True)
 
     # load data
-    datafile = Path('data') / 'mergedata-1114.xlsx'
+    datafile = Path('data') / 'mergedata-0229.xlsx'
     raw = pd.read_excel(datafile, engine='openpyxl')
     # preprocessing and criteria filtering
     data = raw[raw['en_total'] > 0]
@@ -87,14 +88,14 @@ if __name__ == '__main__':
 
     # compute GINI coefs for components
     compress = ['en_ac', 'en_computer', 'en_freezing', 'en_laundry', 'en_lighting', 'en_television']
-    components = ['en_appliance', 'en_cooking', 'en_heating', 'en_vehicle', 'en_waterheating']
+    components = ['en_appliance', 'en_cooking', 'en_house_heating', 'en_vehicle', 'en_water_heating']
     labels = ['Appliance', 'Cooking', 'Space heating', 'Vehicle', 'Water heating']
     data['en_appliance'] = data[compress].sum(axis=1)  # compress 6 types into 1 type
-    array = [data[k].values for k in components]
+    array = [data[k].dropna().values for k in components]
     inequality(*array, labels=labels, name='component', save=path)
 
     # GINI coefs after clustering
-    clusterfile = Path('data') / 'clustered-0223' / 'cluster-all-0019.xlsx'
+    clusterfile = Path('data') / 'clustered-0223' / 'cluster-0.06.xlsx'
     cluster = pd.read_excel(clusterfile)
     cluster['en_appliance'] = cluster[compress].sum(axis=1)  # compress 6 types into 1 type
     # all GINI

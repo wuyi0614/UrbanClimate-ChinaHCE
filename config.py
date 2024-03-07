@@ -40,6 +40,9 @@ VAR_MAPPING = {
     "size": "Family size",
     "children_num": "No. of Children",
     "elderly_num": "No. of Elderly",
+    "expenditure": "Annual expenditure",
+    "income_percap": "Per capita income",
+    "raw_income": "Annual income",
     "log_expenditure": "Annual expenditure(log)",
     "log_income_percap": "Per capita income(log)",
     "log_raw_income": "Annual income(log)",
@@ -67,7 +70,7 @@ VAR_MAPPING = {
     "cost_vehicle": "Cost of vehicle",
     "vehicle_num": "No. of vehicle",
     "vehicle_dist": "Annual driving distance",
-    "vehicle_fuel": "Vehicle fuel type",
+    "vehicle_fuel": "Vehicle fuel type",  # converted into categories
     "vehicle_use": "Actual vehicle displacement",
     "outside": "Stay out days",
     "live_days": "Stay home days",
@@ -80,11 +83,12 @@ VAR_MAPPING = {
     "if_coupleWithChildren": "Is couple family with children",
     "if_grandparentKids": "Is family with grandparents and children",
     "if_bigFamily": "Is big family",
-    "if_existElderly": "Is family with elderly"
+    "if_existElderly": "Is family with the elderly",
+    "if_existChildren": "Is family with children"
 }
 
 # clustering mapping›
-CLUSTER_MAPPING = {
+CLUSTER_MAPPING_2023 = {
     "all": {
         0: ["Northern heating-demand family", "NHD"],
         1: ["Low-income cooking-demand eldelry family", "LCDE"],
@@ -105,6 +109,31 @@ CLUSTER_MAPPING = {
         2: ["High-income car-owner family with children", "HCC"],
         3: ["Higher income younger stayout family", "HYS"],
         4: ["Northern heating-demand family", "NHD"]
+    }
+}
+
+CLUSTER_MAPPING_2024 = {
+    "all": {
+        0: ['Less-energy-demanded grandparenting family', 'LED-P'],
+        1: ['Cooking-demanded elderly family', 'CDE'],
+        2: ['Driving-demanded high-income younger family', 'HDY'],
+        3: ['Heating-demanded northern family', 'HDN'],
+        4: ['Less-energy-demanded extended family', 'LED-E'],
+        5: ['Waterheating-demanded southern family', 'WDS']
+    },
+    "urban": {
+        0: ['Less-energy-demanded grandparenting family', 'LED-P'],
+        1: ['Driving-demanded high-income younger family', 'HDY'],
+        2: ['Less-energy-demanded extended family', 'LED-E'],
+        3: ['Heating-demanded northern family', 'HDN'],
+        4: ['Cooking-demanded elderly family', 'CDE']
+    },
+    "rural": {
+        0: ['Waterheating-demanded southern family', 'WDS'],
+        1: ['Heating-demanded northern family', 'HDN'],
+        2: ['Cooking-demanded elderly family', 'CDE'],
+        3: ['Driving-demanded high-income younger family', 'HDY'],
+        4: ['Less-energy-demanded family', 'LED']
     }
 }
 

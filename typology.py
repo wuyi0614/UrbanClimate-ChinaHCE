@@ -4,7 +4,7 @@ import pandas as pd
 
 
 def create_matrix(d: pd.DataFrame, cluster_key: str):
-    keys = {'general': ['region', 'prefecture_id', 'size', 'age', 'outside', 'live_days', 'house_area'],
+    keys = {'general': ['region', 'size', 'age', 'outside', 'house_area'],
             'economic': ['raw_income', 'expenditure', 'income_percap'],
             'heating': ['type_heating', 'cost_heating', 'area_heating', 'time_heating'],
             'vehicle': ['vehicle_dist', 'cost_vehicle', 'vehicle_num', 'vehicle_fuel'],
@@ -35,6 +35,7 @@ def create_matrix(d: pd.DataFrame, cluster_key: str):
     exp = exp.reset_index()
     # exp.columns = pd.MultiIndex.from_tuples(columns)
     exp.columns = columns
+    exp['count'] = d[['id', cluster_key]].groupby(cluster_key).count()
     return columns[1:], exp
 
 
@@ -46,7 +47,7 @@ if __name__ == '__main__':
     path = Path('data') / 'clustered-0223'
 
     # specify a right version of clustered data
-    clusterfile = path / 'cluster-0.27.xlsx'
+    clusterfile = path / 'cluster-0.06.xlsx'
     cluster = pd.read_excel(clusterfile)
     cluster = cluster.replace(-99, np.nan)
 

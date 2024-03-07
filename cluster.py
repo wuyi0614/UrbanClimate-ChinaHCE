@@ -14,6 +14,9 @@ from sklearn.metrics import silhouette_score, davies_bouldin_score
 from sklearn.preprocessing import StandardScaler, RobustScaler, Normalizer
 from config import WSJ, VAR_MAPPING
 
+# global config
+pd.set_option('display.float_format', lambda x: '%.3f' % x)
+
 
 def preprocessing(data: pd.DataFrame, vars: list = [], scale: str = 'zscore', **param):
     """data preprocessing and standardization
@@ -43,8 +46,8 @@ def lasso_modelling(data: pd.DataFrame,
                     dep_var: str,
                     alpha_range: list = None,
                     max_iteration=1000,
-                    min_weight: float = None,
-                    display=True):
+                    display=True,
+                    **params):
     if alpha_range is None:
         alpha_range = np.linspace(0.001, 0.1, 1000)
 
@@ -52,14 +55,14 @@ def lasso_modelling(data: pd.DataFrame,
     x = data[vars].fillna(0).copy(True).values
     y = data[dep_var].copy(True).values
 
-    model = Lasso()
+    model = Lasso(params.get('tol', 1e-4))  # TODO: default params could be configured for convergence
     result = GridSearchCV(model,
                           param_grid={'alpha': alpha_range, 'max_iter': [max_iteration]},
-                          cv=5,
-                          scoring='neg_mean_absolute_error',
-                          n_jobs=1)
+                          cv=10,
+                          scoring=params.get('scoring', 'neg_mean_absolute_error'),  # might be changed
+                          n_jobs=4)
     result.fit(x, y)
-    print('MAE: %.5f' % result.best_score_)
+    print('Scoring: %.5f' % result.best_score_)
     print('Optimal param：\n', result.best_params_)
     alpha = result.best_params_
 
@@ -71,11 +74,6 @@ def lasso_modelling(data: pd.DataFrame,
     la_coef["colors"] = WSJ['lightred']
     la_coef.loc[la_coef.coef < 0, "colors"] = WSJ['lightgreen']
 
-    # if min_weight is None:
-    #     min_weight = 0.07
-    #
-    # la_coef = la_coef[la_coef.coef.abs() >= min_weight]
-
     coef = pd.concat([la_coef[la_coef.coef == 0], la_coef[la_coef.coef < 0].sort_values('coef')], axis=0)
     coef = pd.concat([coef, la_coef[la_coef.coef > 0].sort_values('coef')], axis=0)
 
@@ -84,7 +82,7 @@ def lasso_modelling(data: pd.DataFrame,
         fig = plt.figure(figsize=(6, 6))
         x_range = range(len(coef))
         plt.barh(x_range, coef.coef.values, color=coef.colors.values, alpha=0.65)
-        plt.vlines(0, -0.5, len(coef)-0.5, color='grey', linewidth=0.5)
+        plt.vlines(0, -0.5, len(coef) - 0.5, color='grey', linewidth=0.5)
 
         ticks = [indep_var[v] for v in coef.vars.values]
         plt.yticks(x_range, labels=ticks, size=10, rotation=0, verticalalignment='center', horizontalalignment='right')
@@ -133,8 +131,6 @@ def clustering_modelling(data: pd.DataFrame,
             eva += [[silhouette_score(train, y_pred, metric=metric), davies_bouldin_score(train, y_pred)]]
 
         exp = pd.DataFrame(eva, columns=["silhouette_score", "calinski_harabasz_score"])
-        print(exp)
-
         # for K-means, select the biggest sihouette_score
         n_clusters = exp.silhouette_score.values.argmax() + 2
         print(f"The finalised number of clusters is: {n_clusters}")
@@ -163,11 +159,11 @@ def clustering_modelling(data: pd.DataFrame,
 
     # statistics
     counted = data[[index, 'cluster']].groupby('cluster').count()
-    print(f"Counted households: {counted}")
+    # print(f"Counted households: {counted}")
 
     # check the averaged percap emissions
     counted = data[["en_total", 'cluster']].groupby('cluster').mean()
-    print(f"Classified energy consumption: {counted}")
+    # print(f"Classified energy consumption: {counted}")
 
     # output
     return exp, data.copy(True)
@@ -215,34 +211,30 @@ if __name__ == '__main__':
 
     datafile = Path('data') / 'mergedata-0229.xlsx'
     raw = pd.read_excel(datafile, engine='openpyxl')
-
-    # TODO: 临时代码删除
-    datafile = Path('data') / 'mergedata-1114.xlsx'
-    org = pd.read_excel(datafile, engine='openpyxl')
-    raw = raw.merge(org[['id', 'region', 'IF_single_elderly', 'IF_singleAE', 'IF_singleA',
-                         'IF_couple_elderly', 'IF_coupleA', 'IF_singleWithChildren',
-                         'IF_coupleWithChildren', 'IF_grandparentKids', 'IF_bigFamily', 'IF_existElderly',
-                         'childrenNumber', 'elderNumber', 'emit_vehicle',
-                         'en_cooking_percap', 'en_heating_percap', 'en_vehicle_percap', 'en_waterheating_percap']],
-                    on='id', how='left')
+    raw = raw.drop(
+        columns=['media', 'aware_trust', 'aware_harm', 'aware_justice', 'aware_happy', 'job', 'fuel_vehicle'])
 
     # preprocessing and criteria filtering
-    data = raw[raw['en_total'] > 0]
+    data = raw[(raw['en_total'] > 0 & ~raw['region'].isna())]
     print(f'Got {len(data)} and removed {len(raw) - len(data)} records!')
+
     # NB. careful about nan values as zeroes may have certain meanings and should not be used as null values
-    fillna_keys = ['expenditure', 'raw_income', 'income_percap', 'power_cooking', 'power_ac']
-    data[fillna_keys] = data[fillna_keys].fillna(0).replace(-99, 0)
+    na_safe_keys = ['children_num', 'elderly_num', 'num_cooking', 'power_cooking', 'freq_cooking', 'time_cooking',
+                    'num_water_heater', 'freq_water_heater', 'time_water_heater', 'num_ac', 'freq_ac', 'power_ac',
+                    'time_ac', 'label_water_heater', 'label_ac', 'type_heating', 'time_heating', 'area_heating',
+                    'cost_heating', 'own_vehicle', 'fuel_price_vehicle', 'cost_vehicle', 'vehicle_dist',
+                    'vehicle_use', 'vehicle_fuel', 'raw_income', 'expenditure', 'income_percap']
+    # TODO: missing values will affect results (especially for those rural households)
+    data[na_safe_keys] = data[na_safe_keys].replace(-99, np.nan).fillna(0)
 
     # convert province/city id
     data['log_en_total'] = np.log(data['en_total'].values + 1)
+    data['en_total_percap'] = data['en_total'].values / data['size'].values
     data['log_en_total_percap'] = np.log(data['en_total'].values / data['size'].values + 1)
 
     data['log_expenditure'] = np.log(data['expenditure'].values + 1)
     data['log_raw_income'] = np.log(data['raw_income'].values + 1)
     data['log_income_percap'] = np.log(data['income_percap'].values + 1)
-
-    data['log_power_cooking'] = np.log(data['power_cooking'].values + 1)
-    data['log_power_ac'] = np.log(data['power_ac'].values + 1)
 
     data['province_id'] = data['province'].apply(lambda x: list(data['province'].unique()).index(x))
     data['prefecture_id'] = data['prefecture'].apply(lambda x: list(data['prefecture'].unique()).index(x))
@@ -252,87 +244,70 @@ if __name__ == '__main__':
     #     As for k-mean clustering, standardization is necessary because
     #     `K-means clustering is "isotropic" in all directions`
 
-    var_geo = ['prefecture_id', 'region']
-    var_demo = ['age', 'house_area', 'size', 'children_num', 'elderly_num']
-    var_econ = ['log_expenditure', 'log_income_percap', 'log_raw_income']
+    var_geo = ['prefecture_id']  # NB. region is proxyed by heating features!
+    var_demo = ['size', 'age', 'house_area', 'children_num', 'elderly_num']
+    var_econ = ['expenditure', 'income_percap', 'raw_income']
     var_live = ['outside', 'live_days']
     var_family = ['if_single_elderly', 'if_singleAE', 'if_singleA',
                   'if_couple_elderly', 'if_coupleA', 'if_singleWithChildren',
-                  'if_coupleWithChildren', 'if_grandparentKids', 'if_bigFamily']  # IF_existElderly is moved.
-
-    # TODO: duplicated driving variables could dramatically change the results
+                  'if_coupleWithChildren', 'if_grandparentKids', 'if_bigFamily',
+                  'if_existElderly', 'if_existChildren']
+    # NB. duplicated driving variables could dramatically change the results
     #       vehicle_fuel = vehicle fuel type (93/97 gasoline); vehicle_use = fuel_vehicle
     var_app = ['num_cooking', 'power_cooking', 'freq_cooking', 'time_cooking',
-               'num_water_heater', 'freq_water_heater', 'time_water_heater', 'label_water_heater',
-               'num_ac', 'freq_ac', 'power_ac', 'time_ac', 'label_ac',
+               'num_water_heater', 'freq_water_heater', 'time_water_heater',
+               'num_ac', 'freq_ac', 'power_ac', 'time_ac', 'label_water_heater', 'label_ac',
                'type_heating', 'time_heating', 'area_heating', 'cost_heating']
-    # TODO: changed on 2024-02-23. var_mob is separated from var_app because only a few people owning cars,
+    # NB. changed on 2024-02-23. var_mob is separated from var_app because only a few people owning cars,
     #       std may change the pattern.
-    var_mob = ['own_vehicle', 'fuel_price_vehicle', 'cost_vehicle',
-               'vehicle_dist', 'vehicle_use', 'vehicle_fuel']  # NB. emit_vehicle is moved
+    var_mob = ['vehicle_num', 'fuel_price_vehicle', 'cost_vehicle',
+               'vehicle_dist', 'vehicle_use', 'vehicle_fuel']  # NB. own_vehicle and emit_vehicle is moved
     # var_mob = ['vehicle_dist', 'vehicle_fuel']  # NB. updated on 2024-02-25.
     var_energy = ['en_ac', 'en_computer', 'en_cooking', 'en_freezing', 'en_heating',
                   'en_laundry', 'en_lighting', 'en_television', 'en_vehicle', 'en_water_heating']
 
-    # NB. the following are variables shouldn't come into clustering
-    # var_percap = ['en_ac_percap', 'en_computer_percap', 'en_cooking_percap', 'en_freezing_percap',
-    #               'en_heating_percap', 'en_laundry_percap', 'en_lighting_percap', 'en_television_percap',
-    #               'en_vehicle_percap', 'en_waterheating_percap']
-
-    """ Cache for the best option of clustering
-    var_lasso = lasso_modelling(data, vars=var_demo+var_econ+var_app+var_live,
-                                dep_var='log_en_total', min_weight=0.01, max_iteration=10000)
-    vars = ['live_days',
-        'num_water_heater',
-        'vehicle_dist',
-        'freq_cooking',
-        'time_heating',
-        'region',
-        'vehicle_use',
-        'num_cooking',
-        'house_area',
-        'freq_water_heater',
-        'label_water_heater',
-        'freq_ac',
-        'size',
-        'vehicle_fuel',
-        'log_expenditure',
-        'log_raw_income',
-        'num_ac',
-        'type_heating']
-    """
-    # TODO: variables for standardization
     # Changelog: before 2024-02-23, var_std = var_demo + var_econ + var_app + var_live + var_mob
-    var_std = ['log_expenditure', 'log_income_percap', 'log_raw_income',
-               'num_cooking', 'power_cooking', 'freq_cooking', 'time_cooking',
-               'num_water_heater', 'freq_water_heater', 'time_water_heater',
-               'num_ac', 'freq_ac', 'power_ac', 'time_ac',
-               'type_heating', 'time_heating', 'area_heating', 'cost_heating',
-               'own_vehicle', 'fuel_price_vehicle', 'cost_vehicle',
-               'vehicle_dist', 'vehicle_use', 'vehicle_fuel', 'log_en_total_percap']
+    # The reason why var_family should not be standardized because it's a sparse matrix
+    # var_std = var_geo + var_demo + var_econ + var_app + var_live
 
     # Changelog: before 2024-02-23, vars_all = var_geo + var_demo + var_econ + var_app + var_mob + var_live + var_family
-    vars_all = var_geo + var_demo + var_econ + var_app + var_mob + var_live + var_family
-
-    # Changelog: export describe() for checking purpose
-    data[vars_all].describe().to_excel(path / 'summary-checking.xlsx')
+    vars_all = var_geo + var_demo + var_econ + var_app + var_live + var_mob + var_family
 
     # training dataset after preprocessing
-    train = data.copy(True)
     # Changelog: Changed on 2024-02-26, it used to be vars_std (not all vars)
-    train = preprocessing(train, vars=var_std, scale='zscore')
+    train = preprocessing(data.copy(True), vars=vars_all + ['en_total_percap'], scale='zscore')
+    vv = []
+    for v in [var_geo, var_demo, var_econ, var_app, var_mob, var_live, var_family]:
+        vv += v
+        vars_map = {k: VAR_MAPPING[k] for k in vv}
+        var_lasso = lasso_modelling(train, indep_var=vars_map, dep_var='log_en_total_percap',
+                                    tol=1e-4, max_iteration=100, scoring='neg_mean_absolute_error')
+
+        v = var_lasso.loc[var_lasso['coef'].abs() > 0.07, 'vars'].values.tolist()
+        score, cls = clustering_modelling(data, vars=v, epoch=13, n_clusters=1, display=False)
+        print(score)
+
+    # Changelog: export describe() for checking purpose
+    pd.concat([
+        data[vars_all].describe(),
+        pd.DataFrame(np.zeros(len(vars_all)).reshape(1, len(vars_all)), columns=vars_all),
+        train[vars_all].describe()
+    ], axis=0).to_excel(path / 'summary-checking.xlsx')
+
     # feature engineering with LASSO
-    vars_all = {k: VAR_MAPPING[k] for k in vars_all}
+    vars_map = {k: VAR_MAPPING[k] for k in vars_all}
     # NB. make sure the LASSO converge
-    var_lasso = lasso_modelling(train, indep_var=vars_all, dep_var='log_en_total_percap', max_iteration=100)
+    var_lasso = lasso_modelling(train, indep_var=vars_map, dep_var='en_total_percap',
+                                tol=1e-4, max_iteration=100, scoring='neg_mean_absolute_error')
     print(var_lasso)
 
-    silhouette = pd.DataFrame()  # record K values and Silhouette scores for a heatmap selection
+    # run clustering: record K values and Silhouette scores for a heatmap selection
+    silhouette = pd.DataFrame()
     # use the min/max of LASSO coefficients to create grids for searching
-    for i in np.linspace(0.01, var_lasso['coef'].abs().max(), num=15, endpoint=False):
+    for i in np.linspace(0.0, var_lasso['coef'].abs().max(), num=20, endpoint=False):
         vars = var_lasso.loc[var_lasso['coef'].abs() >= i, 'vars'].values.tolist()
         tag = str(round(i, 2))  # tag for output
-        if not vars:
+        if len(vars) <= 3:
             print('Clustering is over due to an empty variable list!')
             break
 
@@ -361,7 +336,7 @@ if __name__ == '__main__':
 
         # urban/rural
         urban = train[train.resident == 1]
-        score_urban, cls_urban = clustering_modelling(urban, vars=vars,  epoch=13, n_clusters=1, display=False)
+        score_urban, cls_urban = clustering_modelling(urban, vars=vars, epoch=13, n_clusters=1, display=False)
         data['cluster_urban'] = np.nan
         data.loc[urban.index, 'cluster_urban'] = cls_urban['cluster']
 
