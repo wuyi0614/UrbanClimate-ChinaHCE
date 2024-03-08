@@ -17,7 +17,7 @@ from config import WSJ, VAR_MAPPING
 from config import CLUSTER_MAPPING_2024 as CLUSTER_MAPPING
 
 # assign colors to groups
-COLORS = {'LED-P': 'darkred',
+COLORS = {'LED-G': 'darkred',
           'CDE': 'darkgreen',
           'DHY': 'darkblue',
           'HDN': 'lightblue',
@@ -38,23 +38,30 @@ def scale(data: pd.DataFrame, vars: list = []):
     return scaled
 
 
-def get_data(data: pd.DataFrame):
-    me = data[['en_total_percap', 'cluster']].groupby('cluster').mean()
+def get_data(data: pd.DataFrame, keys: list):
+    zero_unsafe_keys = ['freq_cooking', 'time_cooking', 'power_cooking',
+                        'time_water_heater', 'freq_water_heater', 'label_water_heater',
+                        'time_ac', 'freq_ac', 'power_ac',
+                        'time_heating', 'area_heating']
+    for k in zero_unsafe_keys:
+        data[k] = data[k].replace(0, np.nan)
+
+    me = data[keys + ['cluster']].groupby('cluster').agg(np.nanmean)
     me.index = [CLUSTER_MAPPING['all'][i][1] for i in me.index]
 
     mask_urban = data['cluster_urban'].isna()
-    me_urban = data.loc[~mask_urban, ['en_total_percap', 'cluster_urban']].groupby('cluster_urban').mean()
+    me_urban = data.loc[~mask_urban, keys + ['cluster_urban']].groupby('cluster_urban').agg(np.nanmean)
     me_urban.index = [CLUSTER_MAPPING['urban'][i][1] for i in me_urban.index]
 
     mask_urban = data['cluster_rural'].isna()
-    me_rural = data.loc[~mask_urban, ['en_total_percap', 'cluster_rural']].groupby('cluster_rural').mean()
+    me_rural = data.loc[~mask_urban, keys + ['cluster_rural']].groupby('cluster_rural').agg(np.nanmean)
     me_rural.index = [CLUSTER_MAPPING['rural'][i][1] for i in me_rural.index]
     return me, me_urban, me_rural
 
 
 def bar(data: pd.DataFrame):
     # get resident type based and cluster based data
-    me, me_urban, me_rural = get_data(data)
+    me, me_urban, me_rural = get_data(data, ['en_total_percap'])
 
     # make the figure
     fig, axes = plt.subplots(1, 3, sharey=False, figsize=(15, 8))
@@ -86,15 +93,16 @@ def bar(data: pd.DataFrame):
     plt.legend(handles=patches, bbox_to_anchor=(1, 1))
     plt.savefig('data/img-0223/percap-energy-by-cluster.png', dpi=200, bbox_inches='tight')
     plt.show()
+    return me, me_urban, me_rural
 
 
 def heatmap(data: pd.DataFrame):
     # list variables that should be summarised
-    general = ['region', 'age', 'elderly_num', 'children_num', 'outside',
-               'raw_income', 'expenditure']
-    cooking = ['freq_cooking', 'time_cooking']
-    temperature = ['num_water_heater', 'time_water_heater', 'freq_water_heater',
-                   'num_ac', 'time_ac', 'freq_ac',
+    general = ['region', 'size', 'age', 'elderly_num', 'children_num', 'if_grandparentKids',
+               'outside', 'raw_income', 'expenditure']
+    cooking = ['freq_cooking', 'time_cooking', 'power_cooking']
+    temperature = ['num_water_heater', 'time_water_heater', 'freq_water_heater', 'label_water_heater',
+                   'num_ac', 'time_ac', 'freq_ac', 'power_ac',
                    'time_heating', 'area_heating']
     vehicle = ['vehicle_num', 'vehicle_dist']
     compress = ['en_ac', 'en_computer', 'en_freezing', 'en_laundry', 'en_lighting', 'en_television']
@@ -108,33 +116,29 @@ def heatmap(data: pd.DataFrame):
 
     # NB. the final list of variables
     vscale = general + cooking + temperature + vehicle + energy
-    durban, drural = data[data['resident'] == 1], data[data['resident'] == 0]
-    me = data[vscale + ['cluster']].groupby('cluster').mean()
+    me, me_urban, me_rural = get_data(data, vscale)
     me = scale(me, vscale)
-    me_urban = durban[vscale + ['cluster_urban']].groupby('cluster_urban').mean()
     me_urban = scale(me_urban, vscale)
-    me_rural = drural[vscale + ['cluster_rural']].groupby('cluster_rural').mean()
     me_rural = scale(me_rural, vscale)
+
     # restore x-axis labels
     xlabels = [VAR_MAPPING[i] for i in vscale]
-    # reset the index
-    me.index = [CLUSTER_MAPPING['all'][i][1] for i in me.index]
-    me_urban.index = [CLUSTER_MAPPING['urban'][i][1] for i in me_urban.index]
-    me_rural.index = [CLUSTER_MAPPING['rural'][i][1] for i in me_rural.index]
 
-    titles = ['(a)', '(b)', '(c)']
+    titles = ['(c)', '(b)', '(a)']
     fig, axes = plt.subplots(3, 1, sharex=True, figsize=(16, 10))
-    for idx, g in enumerate([me, me_urban, me_rural]):
+    for idx, g in enumerate([me_rural, me_urban, me]):
         # make the figure
         im = sns.heatmap(g, cmap="RdYlGn_r", cbar=False, ax=axes[idx], linewidth=1, alpha=0.8)
-        axes[idx].set_yticklabels(labels=g.index, rotation=0, fontsize=12)
-        axes[idx].set_ylabel(ylabel=f'{titles[idx]}', rotation=0, fontsize=14, labelpad=20)
-        axes[idx].set_xticklabels(labels=xlabels, fontsize=12, rotation=90, horizontalalignment='right')
+        axes[idx].set_yticklabels(labels=g.index, rotation=60, fontsize=14)
+        axes[idx].set_ylabel(ylabel=f'{titles[idx]}', rotation=90, fontsize=14, labelpad=12)
+        axes[idx].set_xticklabels(labels=xlabels, fontsize=14, rotation=90, horizontalalignment='center')
 
     mappable = im.get_children()[0]
-    plt.colorbar(mappable, ax=axes, orientation='vertical')
+    cbar = plt.colorbar(mappable, ax=axes, pad=0.02, orientation='vertical')
+    cbar.ax.tick_params(rotation=90, labelsize=14)
     plt.savefig('data/img-0223/heatmap.png', dpi=200, bbox_inches='tight')
     plt.show()
+    return me, me_urban, me_rural
 
 
 if __name__ == '__main__':
@@ -143,5 +147,13 @@ if __name__ == '__main__':
     data = pd.read_excel(clusterfile)
 
     # make figures
-    bar(data)
-    heatmap(data)
+    m, u, r = bar(data)
+    m, u, r = heatmap(data)
+
+    # summarise data
+    keys = ['freq_cooking', 'time_cooking', 'power_cooking',
+            'num_water_heater', 'time_water_heater', 'freq_water_heater', 'label_water_heater',
+            'num_ac', 'time_ac', 'freq_ac', 'power_ac', 'label_ac',
+            'time_heating', 'area_heating',
+            'en_vehicle', 'en_cooking', 'en_total']
+    m, u, r = get_data(data, keys=keys)

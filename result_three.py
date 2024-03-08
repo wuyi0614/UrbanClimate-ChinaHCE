@@ -57,10 +57,12 @@ def inequality_no_cluster(data: pd.DataFrame, save: Path):
     arr2 = [data[k].dropna().values for k in components]
     # make the figure
     titles = ['(a)', '(b)']
+    gi = []
     fig, axes = plt.subplots(1, 2, sharey=False, figsize=(16, 8))
     for idx, (label, array) in enumerate(zip([label1, label2], [arr1, arr2])):
         for i, a in enumerate(array):
             g = gini(a)
+            gi += [g]
             lo = lorenz(a)
             # we need the X values to be between 0.0 to 1.0
             c = list(WSJ.values())[i]
@@ -79,6 +81,7 @@ def inequality_no_cluster(data: pd.DataFrame, save: Path):
 
     plt.savefig(save / 'inequality-region+energies.png', dpi=200, bbox_inches='tight')
     plt.show()
+    return gi
 
 
 def inequality_with_cluster(data: pd.DataFrame, save: Path):
@@ -105,10 +108,12 @@ def inequality_with_cluster(data: pd.DataFrame, save: Path):
 
     # make the figure with 3 subplots
     titles = ['(a)', '(b)', '(c)']
+    gi = []
     fig, axes = plt.subplots(1, 3, sharey=False, figsize=(21, 7))
     for idx, (label, array) in enumerate(zip([label1, label2, label3], [arr1, arr2, arr3])):
         for i, a in enumerate(array):
             g = gini(a)
+            gi += [g]
             lo = lorenz(a)
             # we need the X values to be between 0.0 to 1.0
             c = WSJ[COLORS[label[i]]]
@@ -127,6 +132,7 @@ def inequality_with_cluster(data: pd.DataFrame, save: Path):
 
     plt.savefig(save / 'inequality-clustered.png', dpi=200, bbox_inches='tight')
     plt.show()
+    return gi
 
 
 def inequality(*arrays, labels: list, name: str, save: Path):
@@ -178,8 +184,15 @@ if __name__ == '__main__':
     data = nocluster[nocluster['en_total'] > 0]
     print(f'Got {len(data)} and removed {len(nocluster) - len(data)} records!')
 
+    # the general GINI coef of all samples before clustering
+    g = gini(data['en_total'].values)
+    print(f'General GINI: {g}')
+
     # compute GINI coefs for urban, rural, north, south and components
-    inequality_no_cluster(data, save)
+    gi_no_cluster = inequality_no_cluster(data, save)
 
     # compute GINI coefs for all, urban, rural samples with clusters
-    inequality_with_cluster(cluster, save)
+    gi_cluster = inequality_with_cluster(cluster, save)
+    for i in [(0, 6), (6, 11), (11, 16)]:
+        g = gi_cluster[i[0]: i[1]]
+        print(np.mean(g))
