@@ -89,7 +89,9 @@ VAR_MAPPING = {
     "en_cooking_percent": "Cooking demand(%)",
     "en_vehicle_percent": "Vehicle demand(%)",
     "en_house_heating_percent": "House heating demand(%)",
-    "en_water_heating_percent": "Water heating demand(%)"
+    "en_water_heating_percent": "Water heating demand(%)",
+    "en_total": "Total energy consumption",
+    "en_total_percap": "Per capita energy consumption"
 }
 
 # clustering mapping›

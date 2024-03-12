@@ -277,16 +277,6 @@ if __name__ == '__main__':
     # training dataset after preprocessing
     # Changelog: Changed on 2024-02-26, it used to be vars_std (not all vars)
     train = preprocessing(data.copy(True), vars=vars_all + ['en_total_percap'], scale='zscore')
-    vv = []
-    for v in [var_geo, var_demo, var_econ, var_app, var_mob, var_live, var_family]:
-        vv += v
-        vars_map = {k: VAR_MAPPING[k] for k in vv}
-        var_lasso = lasso_modelling(train, indep_var=vars_map, dep_var='log_en_total_percap', save=path,
-                                    tol=1e-4, max_iteration=100)
-
-        v = var_lasso.loc[var_lasso['coef'].abs() > 0.07, 'vars'].values.tolist()
-        score, cls = clustering_modelling(data, vars=v, epoch=13, n_clusters=1, display=False)
-        print(score)
 
     # Changelog: export describe() for checking purpose
     pd.concat([

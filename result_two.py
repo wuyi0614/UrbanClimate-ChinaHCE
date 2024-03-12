@@ -61,7 +61,7 @@ def get_energy(data: pd.DataFrame) -> pd.DataFrame:
     return pivot
 
 
-def city_component_chart(energy: pd.DataFrame, cities: np.ndarray) -> pd.DataFrame:
+def city_component_chart(energy: pd.DataFrame, cities: np.ndarray, save: Path = Path('data')) -> pd.DataFrame:
     """
     This function illustrates the components of energy consumption from each category
 
@@ -143,11 +143,11 @@ def city_component_chart(energy: pd.DataFrame, cities: np.ndarray) -> pd.DataFra
 
     plt.tight_layout()
     plt.legend(loc=1, ncol=2, fontsize=14)
-    fig.savefig('img/figure2.pdf', format='pdf', dpi=200)
+    fig.savefig(save / 'figure2.pdf', format='pdf', dpi=200)
     plt.show()
 
 
-def city_energy_chart(data: pd.DataFrame) -> pd.DataFrame:
+def city_energy_chart(data: pd.DataFrame, save: Path = Path('data')) -> pd.DataFrame:
     """
     The dataframe should contain `region` column before analysing and the chart has the following parts:
     - mean values by cities - box plot
@@ -157,7 +157,6 @@ def city_energy_chart(data: pd.DataFrame) -> pd.DataFrame:
     :param data: a pre-processed dataframe
     """
     data = data[data['en_total'] > 0]  # skip zero-value entries
-    out = data[['prefecture_eng']]  # append data to the tot
     # energy consumption by region and city
 
     data['percap_all'] = data['en_total'] / data['size']
@@ -178,8 +177,10 @@ def city_energy_chart(data: pd.DataFrame) -> pd.DataFrame:
     chart['resident'] = chart['resident'].apply(lambda x: 'Urban' if x == 1 else 'Rural')
     # ... dataframe for lineplot
     linechart = data[['region', 'en_total', 'size']].groupby('region').sum().reset_index()
-    # north / south: 433.66, 257.83
+    urbanrural = data[['region', 'resident', 'en_total', 'size']].groupby(['region', 'resident']).sum().reset_index()
+    # north / south: 421.18, 323.89
     regional = (linechart['en_total'] / linechart['size']).values.round(2)
+    ur = (urbanrural['en_total'] / urbanrural['size']).values.round(2)
 
     # pre-processing before making the chart
     # result one: percap energy use by urban/rural by cities
@@ -202,10 +203,16 @@ def city_energy_chart(data: pd.DataFrame) -> pd.DataFrame:
     plt.xlabel('Per capita energy consumption (kgce)', fontsize=14)
     plt.legend(loc=1, ncol=2, fontsize=12)
 
+    # add texts for the north and south
+    plt.text(3500, y=45, s=f'PHEC of the South\n{regional[1]} kgce',
+             ha='left', fontsize=16, weight='bold')
+    plt.text(3500, y=50, s=f'PHEC of the North\n{regional[0]} kgce',
+             ha='left', fontsize=16, weight='bold')
+
     # adjust the margins
     plt.margins(0.01)
     plt.tight_layout()
-    fig.savefig('img/figure1.pdf', format='pdf', dpi=200)
+    fig.savefig(save / 'figure1.pdf', format='pdf', dpi=200)
     plt.show()
     return chart
 
@@ -248,33 +255,27 @@ def create_regional_variable(series):
 
 if __name__ == '__main__':
     # merging data and test
-    datafile = Path('data') / 'vardata-1030.xlsx'
-    data = pd.read_excel(datafile, engine='openpyxl')
-    energyfile = Path('data') / 'energyuse-1103.xlsx'
-    energy = pd.read_excel(energyfile, engine='openpyxl')
-    energy = get_energy(energy)
+    # datafile = Path('data') / 'vardata-1030.xlsx'
+    # data = pd.read_excel(datafile, engine='openpyxl')
+    # energyfile = Path('data') / 'energyuse-1103.xlsx'
+    # energy = pd.read_excel(energyfile, engine='openpyxl')
+    # energy = get_energy(energy)
+    # merged = data.merge(energy, on='id', how='left')
 
-    merged = data.merge(energy, on='id', how='left')
     # preprocess
+    # merged = get_cities(merged)
+    # merged = get_percap(merged, columns=['en_total'])
+    # _, merged['region'] = create_regional_variable(merged['province'])
+    # merged.to_excel(Path('data') / 'mergedata-1103.xlsx', index=False)
+    # diff = merged[['region', 'en_total_no_vehicle']].groupby('region').mean()
+    # diff = merged[['region', 'en_total']].groupby('region').mean()
+
+    # energy consumption chart
+    if not 'merged' in locals():
+        merged = pd.read_excel('data/mergedata-0229.xlsx')
+
     merged = get_cities(merged)
     merged = get_percap(merged, columns=['en_total'])
-    _, merged['region'] = create_regional_variable(merged['province'])
-    merged.to_excel(Path('data') / 'mergedata-1103.xlsx', index=False)
-
-    """ check the data distribution (should be attached to the appendix)
-                en_total_no_vehicle
-    region                     
-    0               1003.835610
-    1                554.723219
-    = 1.81
-               en_total
-    region             
-    0       1210.287436
-    1        742.899574
-    = 1.63
-    """
-    diff = merged[['region', 'en_total_no_vehicle']].groupby('region').mean()
-    diff = merged[['region', 'en_total']].groupby('region').mean()
 
     # city-level variables
     cityfile = Path('data') / 'citydata-1029.xlsx'
@@ -287,15 +288,12 @@ if __name__ == '__main__':
 
     foo = merged[['prefecture', 'en_total', 'size']].groupby('prefecture').sum()
 
-    # energy consumption chart
-    if not 'merged' in locals():
-        merged = pd.read_excel('data/mergedata-1104.xlsx')
-
     index = city_energy_chart(merged)
     cities = index['prefecture_eng'].values.tolist()
     cities.reverse()
 
     # add a new chart to the result one section
+    energyfile = Path('data') / 'energyuse-1103.xlsx'
     energy = pd.read_excel(energyfile, engine='openpyxl')
     # use merged data to append the city info [prefecture_eng]
     energy = energy.merge(merged[['id', 'prefecture_eng']], on='id', how='left')

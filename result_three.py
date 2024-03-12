@@ -54,7 +54,7 @@ def inequality_no_cluster(data: pd.DataFrame, save: Path):
     components = ['en_appliance', 'en_cooking', 'en_house_heating', 'en_vehicle', 'en_water_heating']
     label2 = ['Appliance', 'Cooking', 'Space heating', 'Vehicle', 'Water heating']
     data['en_appliance'] = data[compress].sum(axis=1)  # compress 6 types into 1 type
-    arr2 = [data[k].dropna().values for k in components]
+    arr2 = [data[k].fillna(0).values for k in components]
     # make the figure
     titles = ['(a)', '(b)']
     gi = []

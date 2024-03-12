@@ -4,6 +4,7 @@
 #
 
 import pandas as pd
+from config import VAR_MAPPING
 
 # merging the raw energy use data with the household attribute data
 MERGE_MAPPING = {
@@ -48,6 +49,7 @@ def merging(org: pd.DataFrame, tar: pd.DataFrame) -> pd.DataFrame:
 
 if __name__ == '__main__':
     from pathlib import Path
+    import numpy as np
 
     # load calculated data
     cal_datafile = Path('data') / 'CGSS-calculate-20231019.xlsx'
@@ -65,3 +67,38 @@ if __name__ == '__main__':
     merged = merging(calculate, var)
     merge_datafile = Path('data') / f'mergedata-{tag}.xlsx'
     merged.to_excel(merge_datafile, index=False)
+
+    # output descriptive summary
+    datafile = Path('data') / 'mergedata-0229.xlsx'
+    raw = pd.read_excel(datafile, engine='openpyxl')
+    raw = raw.drop(columns=['media', 'aware_trust', 'aware_harm',
+                            'aware_justice', 'aware_happy', 'job', 'fuel_vehicle'])
+
+    # preprocessing and criteria filtering
+    data = raw[(raw['en_total'] > 0 & ~raw['region'].isna())]
+    na_safe_keys = ['children_num', 'elderly_num', 'num_cooking', 'power_cooking', 'freq_cooking', 'time_cooking',
+                    'num_water_heater', 'freq_water_heater', 'time_water_heater', 'num_ac', 'freq_ac', 'power_ac',
+                    'time_ac', 'label_water_heater', 'label_ac', 'type_heating', 'time_heating', 'area_heating',
+                    'cost_heating', 'own_vehicle', 'fuel_price_vehicle', 'cost_vehicle', 'vehicle_dist',
+                    'vehicle_use', 'vehicle_fuel', 'raw_income', 'expenditure', 'income_percap']
+    data[na_safe_keys] = data[na_safe_keys].replace(-99, np.nan)
+    data['en_total_percap'] = data['en_total'].values / data['size'].values
+    data['province_id'] = data['province'].apply(lambda x: list(data['province'].unique()).index(x))
+    data['vehicle_dist'] = data['vehicle_dist'].replace(0, np.nan)
+    data.loc[data['vehicle_dist'].isna(), ['vehicle_fuel', 'vehicle_use']] = np.nan
+
+    # keys in the manuscript
+    keys = ['prefecture_id', 'region', 'age', 'house_area', 'size', 'children_num', 'elderly_num',
+            'expenditure', 'raw_income', 'outside', 'live_days',
+            'if_single_elderly', 'if_singleAE', 'if_singleA', 'if_couple_elderly', 'if_coupleA',
+            'if_singleWithChildren', 'if_coupleWithChildren', 'if_grandparentKids', 'if_bigFamily', 'if_existElderly',
+            'num_cooking', 'power_cooking', 'freq_cooking', 'time_cooking',
+            'num_water_heater', 'freq_water_heater', 'time_water_heater', 'label_water_heater',
+            'num_ac', 'freq_ac', 'power_ac', 'time_ac', 'label_ac',
+            'type_heating', 'time_heating', 'area_heating', 'cost_heating',
+            'vehicle_num', 'fuel_price_vehicle', 'cost_vehicle', 'vehicle_dist', 'vehicle_fuel', 'vehicle_use',
+            'en_total', 'en_total_percap']
+    names = [VAR_MAPPING[k] for k in keys]
+    summary = data[keys].describe().reset_index().T
+    summary.index = ['stats'] + names
+    summary.to_excel(Path('data') / 'clustered-0223' / 'descriptive-summary.xlsx', index=True)
